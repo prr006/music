@@ -1,0 +1,30 @@
+node_modules/
+npm/*/bin/
+
+# Package/build outputs
+*.tgz
+dist/
+coverage/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+
+# OS / tooling
+.DS_Store
+.planning/
+.pair-programming/
+.opencode/
+
+# Bun
+package-lock.json
+# Electron build output
+out/
+gui/out/
+
+# Compiled backend binary
+gui/resources/*.exe
+
+# Windows reserved device
+nul/

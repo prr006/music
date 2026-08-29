@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: bun ci
+      - run: bun run typecheck
+      - run: bun test
+      - run: node --check bin/ytmusic-cli
+      - run: ruby -c Formula/ytmusic-cli.rb
+
+  native-smoke:
+    name: Native smoke (${{ matrix.os }})
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: ytmusic-cli
+          - os: macos-latest
+            binary: ytmusic-cli
+          - os: windows-latest
+            binary: ytmusic-cli.exe
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun ci
+      - run: bun build --compile src/index.ts --outfile=${{ matrix.binary }}
+      - run: ./${{ matrix.binary }} --version
+
+  packages:
+    name: Cross-platform packages
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: bun ci
+      - run: bun run build
+      - run: bun run check:tarballs
+      - run: bun run check:control-cli
+      - run: bun run check:npm-install

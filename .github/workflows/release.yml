@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: bun ci
+
+      - name: Set version from tag
+        run: bun run set-version "${GITHUB_REF_NAME#v}"
+
+      - name: Verify package metadata
+        run: bun run check:packaging
+
+      - name: Typecheck and test
+        run: |
+          bun run typecheck
+          bun test
+
+      - name: Build all platforms
+        run: bun run build
+
+      - name: Verify package tarballs
+        run: bun run check:tarballs
+
+      - name: Verify compiled CLI control
+        run: bun run check:control-cli
+
+      - name: Verify clean npm install
+        run: bun run check:npm-install
+
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for pkg in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            PACKAGE_NAME=$(node -p "require('./npm/$pkg/package.json').name")
+            PACKAGE_VERSION=$(node -p "require('./npm/$pkg/package.json').version")
+            PUBLISHED_VERSION=$(npm dist-tag ls "$PACKAGE_NAME" 2>/dev/null | awk '/^latest:/ { print $2 }' || true)
+            if npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+              echo "$PACKAGE_NAME@$PACKAGE_VERSION is already published; skipping."
+            elif [ "$PUBLISHED_VERSION" = "$PACKAGE_VERSION" ]; then
+              echo "$PACKAGE_NAME@$PACKAGE_VERSION is published and awaiting npm scanning; skipping."
+            else
+              npm publish "./npm/$pkg" --access public
+            fi
+          done
+
+      - name: Wait for platform packages
+        timeout-minutes: 25
+        run: |
+          DEADLINE=$((SECONDS + 1200))
+          while true; do
+            MISSING=()
+            for pkg in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+              PACKAGE_NAME=$(node -p "require('./npm/$pkg/package.json').name")
+              PACKAGE_VERSION=$(node -p "require('./npm/$pkg/package.json').version")
+              if ! npm view "$PACKAGE_NAME@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+                MISSING+=("$PACKAGE_NAME@$PACKAGE_VERSION")
+              fi
+            done
+
+            if [ "${#MISSING[@]}" -eq 0 ]; then
+              echo "All platform packages are available from npm."
+              break
+            fi
+
+            if [ "$SECONDS" -ge "$DEADLINE" ]; then
+              echo "::error::Timed out waiting for npm publish-time scanning."
+              printf 'Still unavailable: %s\n' "${MISSING[@]}"
+              exit 1
+            fi
+
+            echo "Waiting for npm publish-time scanning: ${MISSING[*]}"
+            sleep 30
+          done
+
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PUBLISHED_VERSION=$(npm dist-tag ls ytmusic-player 2>/dev/null | awk '/^latest:/ { print $2 }' || true)
+          if npm view "ytmusic-player@$PACKAGE_VERSION" version >/dev/null 2>&1; then
+            echo "ytmusic-player@$PACKAGE_VERSION is already published; skipping."
+          elif [ "$PUBLISHED_VERSION" = "$PACKAGE_VERSION" ]; then
+            echo "ytmusic-player@$PACKAGE_VERSION is published and awaiting npm scanning; skipping."
+          else
+            npm publish --access public
+          fi

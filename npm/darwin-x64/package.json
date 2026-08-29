@@ -1,0 +1,17 @@
+{
+  "name": "@mammadovziya/ytmusic-player-darwin-x64",
+  "version": "0.3.7",
+  "description": "macOS x64 native binary for ytmusic-player",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "bin/"
+  ],
+  "license": "MIT"
+}
