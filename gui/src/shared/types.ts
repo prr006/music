@@ -29,7 +29,7 @@ export type ControlCommand =
   | { type: 'status' }
   | { type: 'shuffle'; enabled: boolean | null }
   | { type: 'repeat'; mode: RepeatMode }
-  | { type: 'favorite' }
+  | { type: 'favorite'; track?: Track }
   | { type: 'download' }
   | { type: 'queue'; clear: boolean }
   | { type: 'stop' }
@@ -61,6 +61,7 @@ export interface EngineState {
   currentTrack: Track | null;
   queue: QueueItem[];
   history: Track[];
+  favorites: Track[];
   volume: number;
   muted: boolean;
   paused: boolean;
@@ -70,10 +71,15 @@ export interface EngineState {
   repeat: RepeatMode;
 }
 
-export interface BackendEvent {
-  type: string;
-  [key: string]: unknown;
-}
+export type BackendEvent =
+  | { type: 'track-changed'; track: Track | null }
+  | { type: 'playback-state'; track: Track | null; playing: boolean; position: number; duration: number; volume: number; muted: boolean; shuffle: boolean; repeat: RepeatMode }
+  | { type: 'queue-changed'; queue: QueueItem[]; manualCount?: number; radioCount?: number }
+  | { type: 'queue-refilled'; queue: QueueItem[]; manualCount?: number; radioCount?: number }
+  | { type: 'volume-changed'; volume: number; muted: boolean }
+  | { type: 'shuffle-changed'; enabled: boolean }
+  | { type: 'repeat-changed'; mode: RepeatMode }
+  | { type: 'favorites-changed'; favorites: Track[] };
 
 // ─── IPC API (renderer → main → backend) ──────────────────────────────────
 

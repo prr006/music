@@ -21,7 +21,7 @@ export type ControlCommand =
   | { type: 'status' }
   | { type: 'shuffle'; enabled: boolean | null }
   | { type: 'repeat'; mode: RepeatMode }
-  | { type: 'favorite' }
+  | { type: 'favorite'; track?: Track }
   | { type: 'download' }
   | { type: 'queue'; clear: boolean }
   | { type: 'stop' }

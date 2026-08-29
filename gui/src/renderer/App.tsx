@@ -121,6 +121,7 @@ export function App() {
             onToggleMute={b.toggleMute}
             onToggleShuffle={b.toggleShuffle}
             onCycleRepeat={b.cycleRepeat}
+            onToggleFavorite={b.toggleFavorite}
             onOpenQueue={() => togglePanel('queue')}
           />
         ) : (
@@ -155,6 +156,7 @@ export function App() {
           onClose={closePanel}
           onPlay={b.play}
           onOpenSearch={openSearch}
+          onToggleFavorite={b.toggleFavorite}
         />
       </div>
 
