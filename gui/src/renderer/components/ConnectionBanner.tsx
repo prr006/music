@@ -1,22 +1,27 @@
-import { Loader, WifiOff, RefreshCw } from 'lucide-react';
 import type { ConnectionState } from '../hooks/useBackend';
 
-export function ConnectionBanner({ state, onRetry }: { state: ConnectionState; onRetry?: () => void }) {
+export function ConnectionBanner({ state }: { state: ConnectionState }) {
   if (state === 'connected') return null;
+
+  const label: Record<ConnectionState, string> = {
+    starting:     'Starting backend…',
+    connecting:   'Connecting to backend…',
+    connected:    '',
+    disconnected: 'Lost connection — reconnecting…',
+    error:        'Backend unavailable',
+  };
+
   return (
-    <div className={`conn ${state === 'error' ? 'err' : ''}`}>
-      {(state === 'starting' || state === 'connecting') && <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} />}
-      {state === 'disconnected' && <WifiOff size={11} />}
-      {state === 'error' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />}
-      <span>
-        {state === 'starting' && 'Starting...'}
-        {state === 'connecting' && 'Connecting...'}
-        {state === 'disconnected' && 'Reconnecting...'}
-        {state === 'error' && 'Service unavailable'}
-      </span>
-      {state === 'error' && onRetry && (
-        <button className="conn-retry" onClick={onRetry}><RefreshCw size={10} /> Retry</button>
+    <div
+      className={`conn-banner-bar ${state}`}
+      role="status"
+      aria-live="polite"
+      aria-label={label[state]}
+    >
+      {(state === 'starting' || state === 'connecting' || state === 'disconnected') && (
+        <div className="spin-sm" aria-hidden="true" />
       )}
+      <span>{label[state]}</span>
     </div>
   );
 }

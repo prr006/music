@@ -35,9 +35,16 @@ declare global {
       onEvent(callback: (event: unknown) => void): () => void;
       onConnectionState(callback: (state: string) => void): () => void;
       onConnected(callback: (connected: boolean) => void): () => void;
+      // Window controls
+      windowMinimize?(): void;
+      windowMaximize?(): void;
+      windowClose?(): void;
+      windowIsMaximized?(): Promise<boolean>;
+      onWindowMaximized?(callback: (maximized: boolean) => void): () => void;
     };
   }
 }
+
 
 // ─── Hook ─────────────────────────────────────────────────────────────────
 
@@ -68,6 +75,21 @@ export function useBackend() {
   // ─── Connection ──────────────────────────────────────────────────────
 
   useEffect(() => {
+    let disposed = false;
+
+    // A connection event can occur before React registers its listeners. Read the
+    // current status too, so the initial screen always hydrates correctly.
+    void window.api.getConnectionState().then((rawState) => {
+      if (disposed) return;
+      const cs = rawState as ConnectionState;
+      const isConnected = cs === 'connected';
+      set(p => ({ ...p, connectionState: cs, connected: isConnected }));
+      if (isConnected) {
+        fetchState();
+        fetchQueue();
+      }
+    }).catch(() => {});
+
     // New: detailed connection state
     const unsubState = window.api.onConnectionState((state) => {
       const cs = state as ConnectionState;
@@ -89,6 +111,7 @@ export function useBackend() {
     });
 
     return () => {
+      disposed = true;
       unsubState();
       unsubLegacy();
     };

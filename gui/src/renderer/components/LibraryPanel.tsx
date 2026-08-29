@@ -1,91 +1,121 @@
-import React from 'react';
+import { X, Library, Clock } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
-import type { Track, QueueItem } from '../../shared/types';
-import { Music, Library as LibIcon, Search } from 'lucide-react';
+import type { Track } from '../../shared/types';
 
 interface LibraryPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onNavigate?: (section: string) => void;
+  open: boolean;
   state: PlayerState;
+  onClose: () => void;
+  onPlay: (t: Track) => void;
+  onOpenSearch: () => void;
 }
 
-export function LibraryPanel({ isOpen, onClose, onNavigate, state }: LibraryPanelProps) {
-  const fmt = (s?: number) => s ? `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}` : '';
+function thumb(id: string) { return `https://img.youtube.com/vi/${id}/mqdefault.jpg`; }
+function fmt(s?: number): string {
+  if (!s || !Number.isFinite(s)) return '';
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+}
 
-  const sections = [
-    { key: 'recent', title: 'Recently Played', icon: Music, items: [] as { track: Track; source: string }[] },
-    { key: 'library', title: 'Library', icon: LibIcon, items: [] as { track: Track; source: string }[] },
-    { key: 'search', title: 'Search', icon: Search, items: [] as { track: Track; source: string }[] },
-    { key: 'playlists', title: 'Playlists', icon: Music, items: [] as { track: Track; source: string }[] },
-    { key: 'artists', title: 'Artists', icon: Music, items: [] as { track: Track; source: string }[] },
-    { key: 'downloads', title: 'Downloads', icon: Music, items: [] as { track: Track; source: string }[] },
-  ];
-
-  if (!isOpen) return null;
+export function LibraryPanel({ open, state, onClose, onPlay, onOpenSearch }: LibraryPanelProps) {
+  const { history, currentTrack } = state;
+  const hasHistory = history.length > 0;
 
   return (
-    <div className="library-panel" onClick={(e) => e.stopPropagation()}>
-      <div style={{ padding: 'var(--yt-spacing-5) var(--yt-spacing-4)' }}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--yt-spacing-4)' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--yt-text)' }}>Library</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--yt-text-3)', cursor: 'pointer', fontSize: 14 }} aria-label="Close library">✕</button>
-        </header>
+    <div
+      className={`panel${open ? ' open' : ''}`}
+      role="complementary"
+      aria-label="Library"
+      aria-hidden={!open}
+    >
+      {/* Stitch dual-label header */}
+      <div className="panel-header">
+        <div className="panel-title-group">
+          <span className="panel-title">Library</span>
+          <span className="panel-subtitle">Recently Played</span>
+        </div>
+        <button className="panel-close" onClick={onClose} aria-label="Close library">
+          <X size={14} />
+        </button>
+      </div>
 
-        <nav style={{ display: 'flex', gap: 'var(--yt-spacing-2)', marginBottom: 'var(--yt-spacing-4)' }}>
-          {sections.map((section) => (
-            <button
-              key={section.key}
-              style={{
-                padding: 'var(--yt-spacing-2) var(--yt-spacing-3)',
-                borderRadius: 'var(--yt-radius-sm)',
-                fontSize: 12,
-                fontWeight: 500,
-                color: section.key === 'recent' ? 'var(--yt-accent)' : 'var(--yt-text-2)',
-                cursor: 'pointer',
-                border: '1px solid transparent',
-                transition: 'all 0.15s'
-              }}
-              onMouseOver={() => {}}
-              onMouseOut={() => {}}
-              onClick={() => onNavigate?.(section.key)}
-            >
-              {section.icon && <section.icon width={16} height={16} />}
-              {section.title}
-            </button>
-          ))}
-        </nav>
-
-        {/* Recently Played items */}
-        {sections[0].key === 'recent' && sections[0].items.length > 0 && (
-          <div style={{ marginBottom: 'var(--yt-spacing-4)' }}>
-            <div style={{ fontSize: 12, color: 'var(--yt-text-2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Recently Played</div>
-            {sections[0].items.slice(0, 8).map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--yt-spacing-3)', padding: 'var(--yt-spacing-xs) var(--yt-spacing-3)', borderRadius: 'var(--yt-radius-sm)', color: 'var(--yt-text)', cursor: 'pointer', fontSize: 12, transition: 'background 0.1s' }} onMouseOver={() => {} } onMouseOut={() => {}}>
-                <img src={item.track.artwork || 'https://via.placeholder.com/36'} alt={item.track.title} className="artwork" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track.title || 'Unknown'}</div>
-                  <div style={{ fontSize: 10, color: 'var(--yt-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.track.uploader || 'Unknown artist'}</div>
-                </div>
-              </div>
-            ))}
+      {/* Body */}
+      <div className="panel-body">
+        {/* Recently played */}
+        <div className="lib-section">
+          <div className="lib-section-label">
+            <Clock size={10} style={{ display: 'inline', marginRight: 4 }} aria-hidden="true" />
+            Recently Played
           </div>
-        )}
 
-        {/* Library sections placeholders */}
-        {sections.filter(s => s.key !== 'recent').map((section) => (
-          <div key={section.key} style={{ marginBottom: 'var(--yt-spacing-4)' }}>
-            <div style={{ fontSize: 12, color: 'var(--yt-text-2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{section.title}</div>
-            <div style={{ color: 'var(--yt-text-3)', fontSize: 12, padding: 16, border: '1px dashed var(--yt-border)', borderRadius: 'var(--yt-radius-sm)' }}>
-              Not available yet
+          {hasHistory ? (
+            <div role="list" aria-label="Recently played tracks">
+              {history.slice(0, 15).map((track, i) => {
+                const isPlaying = currentTrack?.id === track.id;
+                return (
+                  <div
+                    key={`${track.id}-${i}`}
+                    className={`queue-item${isPlaying ? ' active' : ''}`}
+                    role="listitem"
+                    onClick={() => onPlay(track)}
+                    tabIndex={0}
+                    onKeyDown={e => e.key === 'Enter' && onPlay(track)}
+                    aria-label={`${isPlaying ? 'Now playing: ' : ''}${track.title} by ${track.uploader}`}
+                  >
+                    <img
+                      src={thumb(track.id)}
+                      alt=""
+                      className="queue-item-art"
+                    />
+                    <div className="queue-item-info">
+                      <div
+                        className="queue-item-title truncate"
+                        style={isPlaying ? { color: 'var(--accent)' } : undefined}
+                      >
+                        {track.title || 'Unknown'}
+                      </div>
+                      <div className="queue-item-artist truncate">
+                        {track.uploader || 'Unknown'}
+                      </div>
+                    </div>
+                    {track.duration && (
+                      <span className="queue-item-dur">{fmt(track.duration)}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        ))}
+          ) : (
+            <div className="lib-empty" role="status">
+              Play music to build your history.
+            </div>
+          )}
+        </div>
 
-        {/* Footer */}
-        <footer style={{ marginTop: 'var(--yt-spacing-4)', paddingTop: 'var(--yt-spacing-3)', borderTop: '1px solid var(--yt-border)', fontSize: 12, color: 'var(--yt-text-2)' }}>
-          <div>YTMusic • Version 1.0</div>
-        </footer>
+        {/* About section */}
+        <div className="library-note">
+          <div className="library-note-heading">
+            <Library size={14} />
+            <span style={{ fontWeight: 600, color: 'var(--text-2)' }}>YTMusic Player</span>
+          </div>
+          <p>Private playback is handled locally through mpv and yt-dlp.</p>
+          <p className="library-note-copy">
+            Session history is kept in memory — play more to build your library.
+          </p>
+        </div>
+
+        {/* Search shortcut */}
+        <button
+          id="library-search-btn"
+          className="library-search-btn"
+          onClick={() => { onClose(); onOpenSearch(); }}
+          aria-label="Open search"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          Search for new music
+        </button>
       </div>
     </div>
   );

@@ -1,111 +1,184 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBackend } from './hooks/useBackend';
-import { TopBar } from './components/TopBar';
-import { NowPlayingView } from './components/NowPlayingView';
-import { SearchView } from './components/SearchView';
-import { LibraryDrawer } from './components/LibraryDrawer';
-import { QueueDrawer } from './components/QueueDrawer';
+import { ChromeBar } from './components/ChromeBar';
 import { ConnectionBanner } from './components/ConnectionBanner';
+import { ArtworkStage } from './components/ArtworkStage';
+import { DiscoverStage } from './components/DiscoverStage';
+import { SearchOverlay } from './components/SearchOverlay';
+import { QueuePanel } from './components/QueuePanel';
+import { LibraryPanel } from './components/LibraryPanel';
 
-type View = 'home' | 'search' | 'now-playing' | 'library' | 'queue';
+// ─── Theme ───────────────────────────────────────────────────────────────────
+
 type Theme = 'light' | 'dark' | 'system';
-type PlayerExpansion = 'compact' | 'expanded';
 
-function systemTheme(): 'light' | 'dark' {
-  const win: any = typeof window !== 'undefined' ? window : {};
-  const mq = win.matchMedia ? win.matchMedia('(prefers-color-scheme: dark)') : { matches: false };
-  return mq.matches ? 'dark' : 'light';
-}
-function applyTheme(t: Theme) {
-  const doc: any = typeof document !== 'undefined' ? document : {};
-  if (doc.documentElement) {
-    doc.documentElement.setAttribute('data-theme', t === 'system' ? systemTheme() : t);
+function resolveTheme(t: Theme): 'light' | 'dark' {
+  if (t === 'system') {
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  return t;
 }
+
+function applyTheme(t: Theme) {
+  document.documentElement.setAttribute('data-theme', resolveTheme(t));
+}
+
+// ─── Panel state ─────────────────────────────────────────────────────────────
+
+type Panel = 'queue' | 'library' | null;
+
+// ─── App ─────────────────────────────────────────────────────────────────────
 
 export function App() {
   const b = useBackend();
-  const [view, setView] = useState<View>('home');
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('ym-theme') as Theme) || 'light');
-  const [playerExpansion, setPlayerExpansion] = useState<PlayerExpansion>('compact');
 
-  useEffect(() => { applyTheme(theme); localStorage.setItem('ym-theme', theme); }, [theme]);
+  // Theme
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem('ym-theme') as Theme) || 'light'
+  );
 
   useEffect(() => {
-    if (theme === 'system') {
-      const win: any = typeof window !== 'undefined' ? window : {};
-      const mq = win.matchMedia('(prefers-color-scheme: dark)');
-      const h = () => applyTheme('system');
-      mq.addEventListener('change', h);
-      return () => mq.removeEventListener('change', h);
-    }
+    applyTheme(theme);
+    localStorage.setItem('ym-theme', theme);
   }, [theme]);
 
-  const cycleTheme = useCallback(() => setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light'), []);
-
-  const togglePlayerExpansion = useCallback(() => setPlayerExpansion(p => p === 'compact' ? 'expanded' : 'compact'), []);
-
-  // Initialize player expansion based on connection state
+  // System theme listener
   useEffect(() => {
-    const state = b.state;
-    if (state && state.connectionState === 'connected') {
-      if (playerExpansion === 'expanded' && !state.currentTrack) {
-        setPlayerExpansion('compact');
-      }
-    } else {
-      setPlayerExpansion('compact');
-    }
-  }, [playerExpansion, b]);
+    if (theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const h = () => applyTheme('system');
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, [theme]);
 
-  // Sync player expansion from backend track changes via the API event system
+  const cycleTheme = useCallback(() => {
+    setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light');
+  }, []);
+
+  // Active panel (right-side contextual)
+  const [panel, setPanel] = useState<Panel>(null);
+
+  const togglePanel = useCallback((which: NonNullable<Panel>) => {
+    setPanel(p => p === which ? null : which);
+  }, []);
+
+  const closePanel = useCallback(() => setPanel(null), []);
+
+  // Search overlay
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+
+  // Keyboard shortcut: Ctrl+F / Cmd+F → open search
   useEffect(() => {
-    const unsub = (typeof window !== 'undefined' ? window.api : { onEvent: () => {} }).onEvent((event: any) => {
-      if (event.type === 'track-changed' && event.track) {
-        if (!event.track && playerExpansion === 'expanded') {
-          setPlayerExpansion('compact');
-        }
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
       }
-      if (event.type === 'playback-state') {
-        // Position/duration/volume updates happen via state sync
-      }
-    });
-    return () => unsub?.();
-  }, [playerExpansion]);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Collapse panel overlay click
+  const handleOverlayClick = useCallback(() => {
+    setPanel(null);
+  }, []);
+
+  const { state } = b;
 
   return (
-    <>
-      <ConnectionBanner state={b.state.connectionState} onRetry={b.retryBackend} />
-      {b.state.error && <div className="toast error">{b.state.error}</div>}
+    <div className="app">
+      {/* Connection status banner (only visible when not connected) */}
+      <ConnectionBanner state={state.connectionState} />
 
-      {/* Top Application Bar — compact, always visible navigation */}
-      <TopBar
+      {/* Chrome Bar */}
+      <ChromeBar
         theme={theme}
-        onTheme={cycleTheme}
-        onSearch={() => setView('search')}
-        onLibrary={() => setView('library')}
-        onNowPlaying={() => setView('now-playing')}
+        connectionState={state.connectionState}
+        queueOpen={panel === 'queue'}
+        libraryOpen={panel === 'library'}
+        onSearch={openSearch}
+        onToggleQueue={() => togglePanel('queue')}
+        onToggleLibrary={() => togglePanel('library')}
+        onCycleTheme={cycleTheme}
+        onRetry={b.retryBackend}
       />
 
-      {/* Main Content Area — adapts based on view and playback state */}
-      <div style={{ marginTop: 56, minHeight: 'calc(100vh - 56px)' }}>
-        {/* Now Playing — immersive artwork-centric view when music is playing */}
-        {view === 'now-playing' && <NowPlayingView expansion={playerExpansion} state={b.state} onPlay={b.play} onPrevious={b.previousTrack} onNext={b.nextTrack} onSeek={b.seek} onSetVolume={b.setVolume} onToggleMute={b.toggleMute} onToggleShuffle={b.toggleShuffle} onCycleRepeat={b.cycleRepeat} onTogglePlayerExpansion={togglePlayerExpansion} />}
+      {/* Main Stage */}
+      <div className={`stage${panel !== null ? ' panel-open' : ''}`}>
+        {/* Ambient bg + primary content */}
+        {state.currentTrack ? (
+          <ArtworkStage
+            state={state}
+            onTogglePause={b.togglePause}
+            onNext={b.nextTrack}
+            onPrevious={b.previousTrack}
+            onSeekTo={b.seekTo}
+            onSetVolume={b.setVolume}
+            onToggleMute={b.toggleMute}
+            onToggleShuffle={b.toggleShuffle}
+            onCycleRepeat={b.cycleRepeat}
+            onOpenQueue={() => togglePanel('queue')}
+          />
+        ) : (
+          <DiscoverStage
+            state={state}
+            onOpenSearch={openSearch}
+            onPlay={b.play}
+          />
+        )}
 
-        {/* Search — premium search experience */}
-        {view === 'search' && <SearchView state={b.state} onClose={() => setView('home')} onPlay={b.play} onAddToQueue={b.addToQueue} onPlayNext={b.playNext} />}
+        {/* Panel overlay (click to close) */}
+        <div
+          className={`panel-overlay${panel !== null ? ' visible' : ''}`}
+          onClick={handleOverlayClick}
+          aria-hidden="true"
+        />
 
-        {/* Library — contextual panel/navigation */}
-        {view === 'library' && <LibraryDrawer state={b.state} onClose={() => setView('home')} />}
+        {/* Queue Panel */}
+        <QueuePanel
+          open={panel === 'queue'}
+          state={state}
+          onClose={closePanel}
+          onPlay={b.play}
+          onClear={b.clearQueue}
+          onRemove={b.removeFromQueue}
+        />
 
-        {/* Queue — expandable drawer */}
-        {view === 'queue' && <QueueDrawer state={b.state} onClear={b.clearQueue} onPlay={b.play} />}
-
-        {/* Home / Browse — editorial main screen (default, shown when nothing playing and no other view active) */}
-        {view === 'home' && !b.state.currentTrack && <HomeView state={b.state} onPlay={b.play} onNavigate={() => setView('search')} />}
-
-        {/* Home with playback — shown when track is playing and home view is active */}
-        {view === 'home' && b.state.currentTrack && <NowPlayingView expansion={playerExpansion} state={b.state} onPlay={b.play} onPrevious={b.previousTrack} onNext={b.nextTrack} onSeek={b.seek} onSetVolume={b.setVolume} onToggleMute={b.toggleMute} onToggleShuffle={b.toggleShuffle} onCycleRepeat={b.cycleRepeat} onTogglePlayerExpansion={togglePlayerExpansion} />}
+        {/* Library Panel */}
+        <LibraryPanel
+          open={panel === 'library'}
+          state={state}
+          onClose={closePanel}
+          onPlay={b.play}
+          onOpenSearch={openSearch}
+        />
       </div>
-    </>
+
+      {/* Search Overlay (fullscreen, rendered on top of everything) */}
+      {searchOpen && (
+        <SearchOverlay
+          results={state.searchResults}
+          searching={state.searching}
+          currentTrack={state.currentTrack}
+          loadingTrack={state.loadingTrack}
+          onSearch={b.search}
+          onPlay={b.play}
+          onAddToQueue={b.addToQueue}
+          onPlayNext={b.playNext}
+          onClose={closeSearch}
+        />
+      )}
+
+      {/* Error toast */}
+      {state.error && (
+        <div className="toast error" role="alert" aria-live="assertive">
+          {state.error}
+        </div>
+      )}
+    </div>
   );
 }

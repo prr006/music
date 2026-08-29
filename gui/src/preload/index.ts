@@ -42,4 +42,28 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('backend:connected', handler);
     return () => ipcRenderer.removeListener('backend:connected', handler);
   },
+
+  // ─── Window Controls ─────────────────────────────────────────────────────
+
+  windowMinimize: (): void => {
+    ipcRenderer.send('window:minimize');
+  },
+
+  windowMaximize: (): void => {
+    ipcRenderer.send('window:maximize');
+  },
+
+  windowClose: (): void => {
+    ipcRenderer.send('window:close');
+  },
+
+  windowIsMaximized: (): Promise<boolean> => {
+    return ipcRenderer.invoke('window:isMaximized');
+  },
+
+  onWindowMaximized: (callback: (maximized: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, maximized: boolean) => callback(maximized);
+    ipcRenderer.on('window:maximized', handler);
+    return () => ipcRenderer.removeListener('window:maximized', handler);
+  },
 });

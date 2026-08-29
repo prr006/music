@@ -31,10 +31,10 @@ if (!gotTheLock) {
   function createWindow(): void {
     log('Creating BrowserWindow');
     mainWindow = new BrowserWindow({
-      width: 1200,
+      width: 1280,
       height: 800,
-      minWidth: 800,
-      minHeight: 600,
+      minWidth: 860,
+      minHeight: 580,
       title: 'YTMusic Player',
       backgroundColor: '#0f0f0f',
       webPreferences: {
@@ -42,9 +42,9 @@ if (!gotTheLock) {
         contextIsolation: true,
         nodeIntegration: false,
       },
-      titleBarStyle: 'hiddenInset',
-      frame: process.platform !== 'win32',
-      ...(process.platform === 'win32' ? { titleBarOverlay: true } : {}),
+      // Fully frameless — our custom chrome handles all window decoration
+      frame: false,
+      titleBarStyle: 'hidden',
     });
 
     if (process.env.ELECTRON_RENDERER_URL) {
@@ -57,6 +57,12 @@ if (!gotTheLock) {
       log('BrowserWindow closed');
       mainWindow = null;
     });
+
+    // Forward maximize/unmaximize to renderer so the button can update
+    mainWindow.on('maximize',   () => mainWindow?.webContents.send('window:maximized', true));
+    mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximized', false));
+    mainWindow.on('enter-full-screen', () => mainWindow?.webContents.send('window:maximized', true));
+    mainWindow.on('leave-full-screen', () => mainWindow?.webContents.send('window:maximized', false));
   }
 
   // ─── Backend → Renderer event forwarding ──────────────────────────────────
@@ -88,6 +94,31 @@ if (!gotTheLock) {
   backend.on('restart-failed', () => {
     log('Forwarding restart-failed to renderer');
     mainWindow?.webContents.send('backend:connection-state', 'error');
+  });
+
+  // ─── Window Control IPC ──────────────────────────────────────────────────
+
+  ipcMain.on('window:minimize', () => {
+    log('IPC window:minimize');
+    mainWindow?.minimize();
+  });
+
+  ipcMain.on('window:maximize', () => {
+    log('IPC window:maximize');
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow?.maximize();
+    }
+  });
+
+  ipcMain.on('window:close', () => {
+    log('IPC window:close');
+    mainWindow?.close();
+  });
+
+  ipcMain.handle('window:isMaximized', () => {
+    return mainWindow?.isMaximized() ?? false;
   });
 
   // ─── IPC Handlers ────────────────────────────────────────────────────────
