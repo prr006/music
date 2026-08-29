@@ -20,6 +20,7 @@ export interface PlayerState {
   repeat: RepeatMode;
   queue: QueueItem[];
   history: Track[];
+  favorites: Track[];
   searchResults: Track[];
   searching: boolean;
   error: string | null;
@@ -64,6 +65,7 @@ export function useBackend() {
     repeat: 'off',
     queue: [],
     history: [],
+    favorites: [],
     searchResults: [],
     searching: false,
     error: null,
@@ -202,6 +204,11 @@ export function useBackend() {
         case 'repeat-changed':
           set(p => ({ ...p, repeat: (e.mode as RepeatMode) ?? p.repeat }));
           break;
+        case 'favorites-changed':
+          if (Array.isArray(e.favorites)) {
+            set(p => ({ ...p, favorites: e.favorites as Track[] }));
+          }
+          break;
       }
     });
     return unsub;
@@ -237,6 +244,7 @@ export function useBackend() {
         currentTrack: (d.currentTrack as Track) ?? null,
         queue: (d.queue as QueueItem[]) ?? [],
         history: (d.history as Track[]) ?? p.history,
+        favorites: Array.isArray(d.favorites) ? (d.favorites as Track[]) : p.favorites,
         volume: (d.volume as number) ?? 100,
         muted: (d.muted as boolean) ?? false,
         playing: !(d.paused as boolean),
@@ -371,6 +379,13 @@ export function useBackend() {
     await send({ type: 'repeat', mode: next });
   }, [send]);
 
+  const toggleFavorite = useCallback(async (track?: Track) => {
+    // If no track is supplied the backend toggles the currently playing track.
+    // No optimistic update — the backend's favorites-changed event will
+    // authoritatively update the list.
+    await send({ type: 'favorite', ...(track ? { track } : {}) });
+  }, [send]);
+
   const removeFromQueue = useCallback(async (index: number) => {
     await send({ type: 'remove-from-queue', index });
     fetchQueue();
@@ -391,7 +406,7 @@ export function useBackend() {
     search, play, addToQueue, playNext,
     togglePause, nextTrack, previousTrack,
     seek, seekTo, setVolume, toggleMute,
-    toggleShuffle, cycleRepeat,
+    toggleShuffle, cycleRepeat, toggleFavorite,
     removeFromQueue, clearQueue,
     retryBackend,
   };

@@ -910,6 +910,10 @@ img { display: block; max-width: 100%; }
   background: var(--accent);
 }
 
+/* Heart/favorite: no active dot, just accent color + subtle scale */
+.ib.fav-active { color: var(--accent); }
+.ib.fav-active::after { display: none; }
+
 .ib.dim { opacity: 0.35; }
 .ib:disabled { opacity: 0.25; pointer-events: none; }
 
@@ -1611,6 +1615,22 @@ img { display: block; max-width: 100%; }
 }
 .library-search-btn:hover { background: var(--accent-mid); border-color: var(--accent-mid); transform: translateY(-1px); }
 .library-search-btn:active { transform: translateY(0) scale(0.99); }
+
+/* Library row action (unfavorite) — reveals on hover/focus like track-row actions */
+.lib-row .lib-row-action {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-std);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.lib-row:hover .lib-row-action,
+.lib-row:focus-within .lib-row-action {
+  opacity: 0.85;
+}
+.lib-row .lib-row-action:hover {
+  opacity: 1;
+  background: var(--accent-light);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    SEARCH OVERLAY — FULLSCREEN (Stitch: underline input, display-scale text)

@@ -138,7 +138,10 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       await engine.setRepeatMode(command.mode);
       return { ok: true, message: `Repeat: ${command.mode}` };
     case 'favorite': {
-      const track = currentTrackOrThrow();
+      // Default to the currently playing track (TUI/CLI behavior), but allow
+      // the GUI to pass a specific track so users can unfavorite directly
+      // from the library list.
+      const track = command.track ?? currentTrackOrThrow();
       const added = engine.toggleFavorite(track);
       return { ok: true, message: added ? 'Added to favorites.' : 'Removed from favorites.' };
     }

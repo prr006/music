@@ -3,9 +3,10 @@ import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1,
   Volume2, Volume1, VolumeX,
-  List,
+  List, Heart,
 } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
+import type { Track } from '../../shared/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ interface ArtworkStageProps {
   onToggleMute: () => void;
   onToggleShuffle: () => void;
   onCycleRepeat: () => void;
+  onToggleFavorite: (track?: Track) => void;
   onOpenQueue: () => void;
 }
 
@@ -151,12 +153,15 @@ export function ArtworkStage({
   onToggleMute,
   onToggleShuffle,
   onCycleRepeat,
+  onToggleFavorite,
   onOpenQueue,
 }: ArtworkStageProps) {
   const {
     currentTrack, playing, loading, position, duration,
-    shuffle, repeat, volume, muted,
+    shuffle, repeat, volume, muted, favorites,
   } = state;
+
+  const isFavorited = !!currentTrack && favorites.some(f => f.id === currentTrack.id);
 
   const [imgLoaded, setImgLoaded] = useState(false);
   const [artworkSrc, setArtworkSrc] = useState<string>('');
@@ -383,6 +388,16 @@ export function ArtworkStage({
 
         <div className="extras-wrap">
           {playing && <EqBars />}
+          <button
+            className={`ib ib-sm${isFavorited ? ' active fav-active' : ''}`}
+            onClick={() => onToggleFavorite()}
+            title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+            aria-pressed={isFavorited}
+            id="btn-favorite"
+          >
+            <Heart size={15} fill={isFavorited ? 'currentColor' : 'none'} />
+          </button>
           <button
             className="ib ib-sm"
             onClick={onOpenQueue}
