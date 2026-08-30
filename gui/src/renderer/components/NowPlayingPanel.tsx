@@ -62,8 +62,8 @@ function FitTitle({ text }: { text: string }) {
 }
 
 function ProgressBar({
-  position, duration, onSeekTo,
-}: { position: number; duration: number; onSeekTo: (pos: number) => void }) {
+  position, duration, onSeekTo, disabled,
+}: { position: number; duration: number; onSeekTo: (pos: number) => void; disabled?: boolean }) {
   const [dragging, setDragging] = useState(false);
   const [dragPct, setDragPct] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -79,6 +79,7 @@ function ProgressBar({
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (disabled) return;
     e.preventDefault();
     const pct0 = getPct(e);
     setDragging(true);
@@ -92,13 +93,13 @@ function ProgressBar({
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  }, [getPct, onSeekTo, duration]);
+  }, [getPct, onSeekTo, duration, disabled]);
 
   return (
     <div className="np-progress">
       <div
         ref={trackRef}
-        className={`np-track${dragging ? ' dragging' : ''}`}
+        className={`np-track${dragging ? ' dragging' : ''}${disabled ? ' disabled' : ''}`}
         onMouseDown={handleMouseDown}
         role="slider"
         aria-label="Playback position"
@@ -132,7 +133,7 @@ export function NowPlayingPanel({
   const idle = !currentTrack;
 
   return (
-    <aside className="np-panel" aria-label="Now playing">
+    <aside className="np-panel player-dock" aria-label="Now playing">
       <div className="np-toolbar">
         <button
           className="ghost-btn"
@@ -193,6 +194,7 @@ export function NowPlayingPanel({
           position={position}
           duration={duration}
           onSeekTo={onSeekTo}
+          disabled={idle || loading}
         />
 
         <div className="np-transport" role="toolbar" aria-label="Playback controls">
@@ -226,7 +228,7 @@ export function NowPlayingPanel({
             id="btn-play-pause"
           >
             {loading
-              ? <div className="spin-md" />
+              ? <div className="spin-sm play-loading" />
               : playing
                 ? <Pause size={22} fill="currentColor" />
                 : <Play size={22} fill="currentColor" style={{ marginLeft: 2 }} />

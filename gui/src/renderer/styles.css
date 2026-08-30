@@ -27,6 +27,7 @@
   --titlebar-h: 36px;
   --sidebar-w: 72px;
   --np-w: clamp(300px, 32vw, 420px);
+  --queue-w: clamp(280px, 32vw, 340px);
   --mini-h: 62px;
   --progress-rest: rgba(255, 255, 255, 0.14);
   --progress-play: var(--accent);
@@ -221,30 +222,55 @@ img { display: block; max-width: 100%; }
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+.workspace-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── Home layout ───────────────────────────────────────────────────────── */
 
 .home-layout {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--np-w);
+  display: flex;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
+.player-stage,
 .stage {
   position: relative;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   min-width: 0;
-  padding: 40px 48px;
+  min-height: 0;
+  padding: 28px 36px 20px;
   container-type: size;
   container-name: stage;
+}
+.player-body {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  animation: rise 0.45s ease both;
 }
 
 .ambient { position: absolute; inset: 0; pointer-events: none; }
@@ -259,8 +285,7 @@ img { display: block; max-width: 100%; }
 .ambient-vignette {
   position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 70% 62% at 44% 48%, transparent 18%, var(--bg) 78%),
-    linear-gradient(90deg, transparent 62%, var(--bg-2) 100%);
+    radial-gradient(ellipse 70% 62% at 50% 42%, transparent 18%, var(--bg) 78%);
 }
 
 /* ── Hero artwork ──────────────────────────────────────────────────────── */
@@ -268,23 +293,21 @@ img { display: block; max-width: 100%; }
 .hero-stage {
   position: relative;
   z-index: 1;
-  width: min(60cqi, 640px);
+  width: 100%;
   max-width: 100%;
-  max-height: 78%;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: rise 0.45s ease both;
+  flex-shrink: 0;
 }
 .artwork-tile {
   position: relative;
   width: 100%;
   max-width: 100%;
-  max-height: 100%;
   aspect-ratio: 16 / 9;
   border-radius: 14px;
   overflow: hidden;
-  background: transparent;
+  background: var(--art-mat);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255,255,255,0.04);
   cursor: pointer;
   display: flex;
@@ -292,40 +315,45 @@ img { display: block; max-width: 100%; }
   justify-content: center;
 }
 .artwork-tile.ready {
-  width: fit-content;
-  aspect-ratio: auto;
-  background: transparent;
+  width: 100%;
+  aspect-ratio: 16 / 9;
 }
+.artwork-tile:disabled { cursor: default; }
 [data-theme="light"] .artwork-tile {
   box-shadow: 0 10px 24px rgba(40, 30, 70, 0.10), 0 0 0 1px rgba(22, 20, 31, 0.05);
 }
 .artwork-tile.paused .artwork-img { filter: brightness(0.96); }
 .artwork-img {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: min(60cqi, 640px);
-  max-height: min(70cqb, 480px);
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   object-position: center;
-}
-.artwork-tile.tall .artwork-img {
-  max-width: min(42cqi, 420px);
-  max-height: min(72cqb, 560px);
-}
-.artwork-tile.square .artwork-img {
-  max-width: min(48cqi, 480px);
-  max-height: min(68cqb, 480px);
 }
 .artwork-img.fading { opacity: 0; }
 .artwork-placeholder { position: absolute; inset: 0; }
 .artwork-loading-overlay {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.28);
+  display: flex; align-items: flex-end; justify-content: stretch;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
 }
 .artwork-loading-overlay.visible { opacity: 1; }
+.artwork-loading-bar {
+  height: 2px;
+  width: 42%;
+  border-radius: 99px;
+  background: var(--accent);
+  margin: 0 auto 0;
+  animation: load-slide 1.15s ease-in-out infinite;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+@keyframes load-slide {
+  0% { transform: translateX(-140%); }
+  100% { transform: translateX(240%); }
+}
 
 /* ── Now playing panel ─────────────────────────────────────────────────── */
 
@@ -333,30 +361,27 @@ img { display: block; max-width: 100%; }
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 22px 28px 16px;
+  padding: 8px 4px 0;
   min-width: 0;
-  border-left: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.03), transparent 28%),
-    var(--bg-2);
-  overflow-x: hidden;
-  overflow-y: auto;
+  background: transparent;
+  overflow: visible;
   container-type: inline-size;
   container-name: np;
+}
+.player-dock {
+  flex-shrink: 0;
 }
 .np-toolbar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 .np-body {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 0;
-  min-height: 0;
   gap: 0;
 }
 .np-album {
@@ -367,32 +392,34 @@ img { display: block; max-width: 100%; }
   margin-bottom: 6px;
   font-weight: 500;
   max-width: 100%;
+  text-align: center;
 }
 .np-title {
   font-family: Fraunces, Georgia, serif;
-  font-size: clamp(18px, 6.6cqi, 28px);
+  font-size: clamp(18px, 4.4cqi, 26px);
   font-weight: 600;
   letter-spacing: -0.016em;
   line-height: 1.3;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   max-width: 100%;
-  max-height: 3.9em;
+  max-height: 2.6em;
   overflow: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+  text-align: center;
 }
 .np-artist-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   min-width: 0;
 }
-.np-artist { color: var(--text-3); font-size: 13px; font-weight: 400; min-width: 0; }
+.np-artist { color: var(--text-3); font-size: 13px; font-weight: 400; min-width: 0; text-align: center; }
 .np-inline-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
 .ghost-btn {
@@ -420,6 +447,7 @@ img { display: block; max-width: 100%; }
   top: -8px; bottom: -8px;
 }
 .np-track:hover, .np-track.dragging { height: 4px; }
+.np-track.disabled { cursor: default; pointer-events: none; opacity: 0.55; }
 .np-fill {
   height: 100%; border-radius: 99px; background: var(--progress-play);
 }
@@ -448,7 +476,11 @@ img { display: block; max-width: 100%; }
 .play-btn:hover { transform: scale(1.04); filter: brightness(1.06); box-shadow: 0 10px 26px rgba(139, 133, 240, 0.40); }
 .play-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .play-btn:active { transform: scale(0.95); }
-.play-btn:disabled { opacity: 0.4; pointer-events: none; }
+.play-btn:disabled { opacity: 0.55; pointer-events: none; }
+.play-btn .play-loading {
+  border-color: rgba(255,255,255,0.28);
+  border-top-color: #fff;
+}
 
 .np-volume {
   display: flex; align-items: center; gap: 8px;
@@ -485,8 +517,8 @@ img { display: block; max-width: 100%; }
 
 .np-footer {
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: auto; padding-top: 10px;
-  min-height: 24px;
+  margin-top: 8px; padding-top: 4px;
+  min-height: 20px;
 }
 .np-source { font-size: 11px; color: var(--text-3); letter-spacing: 0.04em; }
 
@@ -921,43 +953,56 @@ img { display: block; max-width: 100%; }
 /* ── Responsive ────────────────────────────────────────────────────────── */
 
 @media (max-width: 1600px) {
-  .stage { padding: 32px 36px; }
+  .player-stage, .stage { padding: 24px 32px 16px; }
+  .player-body { width: min(640px, 100%); }
 }
 @media (max-width: 1366px) {
-  :root { --np-w: clamp(280px, 34vw, 380px); --sidebar-w: 68px; }
-  .np-panel { padding: 20px 24px 16px; }
+  :root { --queue-w: clamp(260px, 34vw, 320px); --sidebar-w: 68px; }
   .library-page { padding: 26px 28px; }
   .album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stage { padding: 24px; }
+  .player-stage, .stage { padding: 20px 24px 14px; }
+  .player-body { width: min(560px, 100%); }
 }
 @media (max-width: 1100px) {
-  :root { --np-w: clamp(260px, 36vw, 340px); --sidebar-w: 64px; }
+  :root { --queue-w: min(340px, 100%); --sidebar-w: 64px; }
   .play-btn { width: 52px; height: 52px; }
-  .stage { padding: 18px; }
+  .player-stage, .stage { padding: 16px 18px 12px; }
+  .workspace.queue-open .drawer-scrim { display: block; }
+  .drawer,
+  .queue-panel {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: var(--queue-w);
+    max-width: 100%;
+    transform: translateX(100%);
+    transition: transform 260ms cubic-bezier(0.2, 0, 0, 1);
+    border-left: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(24px);
+  }
+  .workspace.queue-open .drawer,
+  .workspace.queue-open .queue-panel {
+    width: var(--queue-w);
+    transform: none;
+  }
+  .queue-panel-inner { width: 100%; }
 }
 @media (max-width: 900px) {
-  .home-layout { grid-template-columns: minmax(0, 1fr) minmax(240px, 38vw); }
-  .np-panel { padding: 16px 18px; }
   .album-grid { grid-template-columns: minmax(0, 1fr); }
   .mini-time { display: none; }
-  .drawer { width: min(340px, 100%); }
   .library-page { padding: 20px 18px; }
   .page-title { font-size: 32px; }
 }
 @media (max-width: 720px) {
-  .home-layout { grid-template-columns: 1fr; }
-  .np-panel {
-    border-left: none;
-    border-top: 1px solid var(--border);
-    max-height: 48%;
-  }
-  .stage { padding: 16px; }
+  .player-stage, .stage { padding: 12px 14px 8px; }
+  .player-body { width: 100%; }
 }
 @media (max-height: 700px) {
-  .stage { padding: 16px 20px; }
+  .player-stage, .stage { padding: 12px 16px 8px; }
   .play-btn { width: 48px; height: 48px; }
-  .np-toolbar { margin-bottom: 12px; }
-  .np-artist-row { margin-bottom: 16px; }
+  .np-toolbar { margin-bottom: 6px; }
+  .np-artist-row { margin-bottom: 10px; }
+  .np-transport { margin: 10px 0 8px; }
 }
 @container stage (max-width: 640px) {
   .artwork-tile { border-radius: 12px; }

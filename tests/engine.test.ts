@@ -9,6 +9,8 @@ import type { PlaybackDriver, PlaybackSnapshot, RepeatMode, Track } from '../src
 
 let mockLoadCalls: string[] = [];
 
+let mockStopCalls = 0;
+
 class MockPlayer extends EventEmitter implements PlaybackDriver {
   snapshot: PlaybackSnapshot = {
     paused: false,
@@ -21,12 +23,12 @@ class MockPlayer extends EventEmitter implements PlaybackDriver {
 
   async start() {}
   async quit() {}
-  async load(url: string) { mockLoadCalls.push(url); }
+  async load(url: string) { mockLoadCalls.push(url); this.snapshot.paused = false; }
   async togglePause() { this.snapshot.paused = !this.snapshot.paused; }
   async setPaused(paused: boolean) { this.snapshot.paused = paused; }
   async toggleMute() { this.snapshot.muted = !this.snapshot.muted; return this.snapshot.muted; }
   async seek(_s: number) {}
-  async stop() {}
+  async stop() { mockStopCalls += 1; this.snapshot.paused = true; }
   async setVolume(level: number) {
     this.snapshot.volume = Math.max(0, Math.min(100, Math.round(level)));
     return this.snapshot.volume;
@@ -90,6 +92,7 @@ describe('MeloApp', () => {
 
   beforeEach(() => {
     mockLoadCalls = [];
+    mockStopCalls = 0;
     player = new MockPlayer();
     engine = new MeloApp({
       playback: player,
@@ -451,5 +454,53 @@ describe('MeloApp', () => {
     expect(snap.volume).toBe(100);
     expect(snap.repeat).toBe('off');
     expect(Array.isArray(snap.queue)).toBe(true);
+  });
+
+  test('play() stops current audio before resolving the next track', async () => {
+    await engine.play(makeTrack('A'));
+    const stopsAfterFirst = mockStopCalls;
+    await engine.play(makeTrack('B'));
+    expect(mockStopCalls).toBeGreaterThan(stopsAfterFirst);
+    expect(mockLoadCalls[mockLoadCalls.length - 1]).toBe(makeTrack('B').url);
+  });
+
+  test('playNextTrack() stops current audio before loading the next track', async () => {
+    const refilledPromise = waitForEvent(engine, 'queue-refilled');
+    await engine.play(makeTrack('A'));
+    await refilledPromise;
+    const stopsBefore = mockStopCalls;
+    const loadsBefore = mockLoadCalls.length;
+    await engine.playNextTrack();
+    expect(mockStopCalls).toBeGreaterThan(stopsBefore);
+    expect(mockLoadCalls.length).toBeGreaterThan(loadsBefore);
+  });
+
+  test('stale stream resolves are discarded when a newer play() starts', async () => {
+    let releaseSlow: () => void = () => {};
+    const slowGate = new Promise<void>(resolve => { releaseSlow = resolve; });
+    const loads: string[] = [];
+    const stalePlayer = new MockPlayer();
+    stalePlayer.load = async (url: string) => { loads.push(url); };
+    const delayed = new MeloApp({
+      playback: stalePlayer,
+      search: { search: mockSearch },
+      radio: { related: async () => [] },
+      resolver: {
+        resolveAudioUrl: async track => {
+          if (track.id === 'slow') await slowGate;
+          return `stream:${track.id}`;
+        },
+      },
+      store: new JsonStore(mkdtempSync(join(tmpdir(), 'melo-stale-'))),
+    });
+
+    const slowPlay = delayed.play(makeTrack('slow'));
+    await new Promise(r => setTimeout(r, 20));
+    await delayed.play(makeTrack('fast'));
+    releaseSlow();
+    await slowPlay;
+
+    expect(loads).toEqual(['stream:fast']);
+    expect(delayed.currentTrack?.id).toBe('fast');
   });
 });

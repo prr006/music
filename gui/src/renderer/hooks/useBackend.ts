@@ -127,40 +127,26 @@ export function useBackend() {
 
       switch (e.type) {
         case 'playback-state': {
-          // The authoritative real-time state from the backend.
-          // track-changed handles loading→playing transition.
-          // playback-state only updates position/duration/volume/flags.
+          // Authoritative position/volume. Loading stays until track-changed
+          // or the new stream actually starts (playing === true).
           const track = e.track as Track | null;
           const playing = e.playing as boolean;
           set(p => {
-            // If we were loading and the backend now reports a DIFFERENT track,
-            // the play request was superseded — clear loading
             if (p.loading && p.loadingTrack && track && track.id !== p.loadingTrack.id) {
-              return {
-                ...p,
-                currentTrack: track,
-                playing,
-                position: (e.position as number) ?? 0,
-                duration: (e.duration as number) ?? 0,
-                volume: (e.volume as number) ?? p.volume,
-                muted: (e.muted as boolean) ?? p.muted,
-                shuffle: (e.shuffle as boolean) ?? p.shuffle,
-                repeat: (e.repeat as RepeatMode) ?? p.repeat,
-                loading: false,
-                loadingTrack: null,
-              };
+              return p;
             }
-            // Normal update: just sync position/duration/volume/flags
             return {
               ...p,
-              currentTrack: track,
-              playing,
-              position: (e.position as number) ?? 0,
-              duration: (e.duration as number) ?? 0,
+              currentTrack: track ?? p.currentTrack,
+              playing: p.loading ? false : playing,
+              position: p.loading ? 0 : ((e.position as number) ?? 0),
+              duration: (e.duration as number) ?? p.duration,
               volume: (e.volume as number) ?? p.volume,
               muted: (e.muted as boolean) ?? p.muted,
               shuffle: (e.shuffle as boolean) ?? p.shuffle,
               repeat: (e.repeat as RepeatMode) ?? p.repeat,
+              loading: p.loading && !playing,
+              loadingTrack: p.loading && !playing ? p.loadingTrack : null,
             };
           });
           break;
@@ -289,13 +275,12 @@ export function useBackend() {
   // ─── Playback ────────────────────────────────────────────────────────
 
   const play = useCallback(async (track: Track) => {
-    // Optimistic: show loading immediately
     set(p => ({
       ...p,
       loading: true,
       loadingTrack: track,
       currentTrack: track,
-      playing: true,
+      playing: false,
       position: 0,
       duration: track.duration ?? 0,
     }));
@@ -337,11 +322,28 @@ export function useBackend() {
   }, [send]);
 
   const nextTrack = useCallback(async () => {
-    await send({ type: 'next' });
+    set(p => ({
+      ...p,
+      loading: true,
+      loadingTrack: p.queue[0]?.track ?? p.currentTrack,
+      currentTrack: p.queue[0]?.track ?? p.currentTrack,
+      playing: false,
+      position: 0,
+    }));
+    const r = await send({ type: 'next' });
+    if (!r.ok) set(p => ({ ...p, loading: false, loadingTrack: null }));
   }, [send]);
 
   const previousTrack = useCallback(async () => {
-    await send({ type: 'previous' });
+    set(p => ({
+      ...p,
+      loading: true,
+      loadingTrack: null,
+      playing: false,
+      position: 0,
+    }));
+    const r = await send({ type: 'previous' });
+    if (!r.ok) set(p => ({ ...p, loading: false, loadingTrack: null }));
   }, [send]);
 
   const seek = useCallback(async (seconds: number) => {

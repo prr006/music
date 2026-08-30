@@ -50,6 +50,8 @@ export class MeloApp extends EventEmitter {
   private current: Track | null = null;
   private shuffle = false;
   private radioGeneration = 0;
+  private playGeneration = 0;
+  private switching = false;
   private fetchingRadio = false;
   private broadcastTimer: ReturnType<typeof setInterval> | null = null;
   private advancing = false;
@@ -133,28 +135,17 @@ export class MeloApp extends EventEmitter {
   }
 
   async play(track: Track): Promise<void> {
-    const generation = ++this.radioGeneration;
-    if (this.current) this.historyService.record(this.current);
-    this.queue.clear();
-    this.current = track;
-    await this.loadCurrent();
-    this.startBroadcast();
-    this.emitEvent({ type: 'track-changed', track });
-    this.emitQueue('queue-changed');
-    void this.seedRadio(track.id, generation);
+    const radioGeneration = ++this.radioGeneration;
+    const loaded = await this.beginTrack(track, { recordHistory: true, clearQueue: true });
+    if (loaded) void this.seedRadio(track.id, radioGeneration);
   }
 
   async playPlaylistTrack(track: Track, remaining: Track[]): Promise<void> {
     ++this.radioGeneration;
-    if (this.current) this.historyService.record(this.current);
+    this.fetchingRadio = false;
     this.queue.replaceAll(remaining.map(item => ({ track: item, source: 'playlist' as const })));
     if (this.shuffle) this.queue.shuffleRadio();
-    this.current = track;
-    this.fetchingRadio = false;
-    await this.loadCurrent();
-    this.startBroadcast();
-    this.emitEvent({ type: 'track-changed', track });
-    this.emitQueue('queue-changed');
+    await this.beginTrack(track, { recordHistory: true, clearQueue: false });
   }
 
   addToQueue(track: Track): void {
@@ -170,12 +161,8 @@ export class MeloApp extends EventEmitter {
   async playNextTrack(): Promise<boolean> {
     const next = this.queue.shift();
     if (!next) return false;
-    if (this.current) this.historyService.record(this.current);
-    this.current = next.track;
-    await this.loadCurrent();
-    this.emitEvent({ type: 'track-changed', track: this.current });
-    this.emitQueue('queue-changed');
-    this.maybeRefill(next.track.id);
+    const loaded = await this.beginTrack(next.track, { recordHistory: true, clearQueue: false });
+    if (loaded) this.maybeRefill(next.track.id);
     return true;
   }
 
@@ -183,10 +170,7 @@ export class MeloApp extends EventEmitter {
     const previous = this.historyService.pop();
     if (!previous) return false;
     if (this.current) this.queue.insertFront(this.current, 'manual');
-    this.current = previous;
-    await this.loadCurrent();
-    this.emitEvent({ type: 'track-changed', track: this.current });
-    this.emitQueue('queue-changed');
+    await this.beginTrack(previous, { recordHistory: false, clearQueue: false });
     return true;
   }
 
@@ -251,6 +235,8 @@ export class MeloApp extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    this.playGeneration += 1;
+    this.switching = false;
     ++this.radioGeneration;
     this.fetchingRadio = false;
     this.stopBroadcast();
@@ -291,8 +277,55 @@ export class MeloApp extends EventEmitter {
     });
   }
 
-  private async loadCurrent(): Promise<void> {
-    if (!this.current) return;
+  private async haltAudio(): Promise<void> {
+    this.stopBroadcast();
+    try {
+      await this.playback.stop();
+    } catch {
+      /* idle player may reject stop */
+    }
+  }
+
+  /**
+   * Stop current audio immediately, then resolve/load the next URL.
+   * A newer playGeneration makes in-flight resolves and loads no-ops.
+   */
+  private async beginTrack(
+    track: Track,
+    opts: { recordHistory: boolean; clearQueue: boolean },
+  ): Promise<boolean> {
+    const gen = ++this.playGeneration;
+    this.switching = true;
+    await this.haltAudio();
+    if (opts.recordHistory && this.current) this.historyService.record(this.current);
+    if (opts.clearQueue) this.queue.clear();
+    this.current = track;
+    this.emitPlayback();
+    this.emitQueue('queue-changed');
+    let loaded = false;
+    try {
+      loaded = await this.loadCurrent(gen);
+    } catch (error) {
+      if (gen === this.playGeneration) {
+        this.switching = false;
+        this.emitPlayback();
+      }
+      throw error;
+    }
+    if (gen !== this.playGeneration) return false;
+    this.switching = false;
+    if (!loaded) {
+      this.emitPlayback();
+      return false;
+    }
+    this.startBroadcast();
+    this.emitEvent({ type: 'track-changed', track });
+    return true;
+  }
+
+  private async loadCurrent(gen: number): Promise<boolean> {
+    if (!this.current) return false;
+    if (gen !== this.playGeneration) return false;
     const local = this.library.localPath(this.current.id);
     let url = this.current.url;
 
@@ -309,14 +342,23 @@ export class MeloApp extends EventEmitter {
       }
     }
 
+    if (gen !== this.playGeneration) return false;
+
     try {
       await this.playback.load(url);
     } catch (error) {
+      if (gen !== this.playGeneration) return false;
       const message = error instanceof Error ? error.message : String(error);
       logError('playback', `load failed: ${message}`);
       this.emitEvent({ type: 'error', message, area: 'playback' });
       throw error;
     }
+
+    if (gen !== this.playGeneration) {
+      try { await this.playback.stop(); } catch { /* superseded */ }
+      return false;
+    }
+    return true;
   }
 
   private async seedRadio(videoId: string, generation: number): Promise<void> {
@@ -404,7 +446,7 @@ export class MeloApp extends EventEmitter {
     this.emitEvent({
       type: 'playback-state',
       track: this.current,
-      playing: !p.paused && !!this.current,
+      playing: !this.switching && !p.paused && !!this.current,
       position: p.timePos,
       duration: p.duration,
       volume: p.volume,

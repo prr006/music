@@ -12,20 +12,17 @@ interface ArtworkStageProps {
 export function ArtworkStage({ track, playing, loading, onTogglePause }: ArtworkStageProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [src, setSrc] = useState('');
-  const [shape, setShape] = useState<'wide' | 'square' | 'tall'>('wide');
   const prevId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!track) {
       setSrc('');
       setImgLoaded(false);
-      setShape('wide');
       prevId.current = null;
       return;
     }
     if (track.id !== prevId.current) {
       setImgLoaded(false);
-      setShape('wide');
       setSrc(artworkFor(track, true));
       prevId.current = track.id;
     }
@@ -37,12 +34,8 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
     }
   }, [src, track]);
 
-  const handleLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+  const handleLoad = useCallback((_e: SyntheticEvent<HTMLImageElement>) => {
     setImgLoaded(true);
-    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
-    if (!w || !h) return;
-    const r = w / h;
-    setShape(r > 1.25 ? 'wide' : r < 0.9 ? 'tall' : 'square');
   }, []);
 
   if (!track) return null;
@@ -56,9 +49,9 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
           playing ? 'playing' : 'paused',
           loading ? 'loading' : '',
           imgLoaded ? 'ready' : '',
-          shape,
         ].filter(Boolean).join(' ')}
-        onClick={onTogglePause}
+        onClick={loading ? undefined : onTogglePause}
+        disabled={loading}
         aria-label={`${playing ? 'Pause' : 'Play'} ${track.title}`}
       >
         {!imgLoaded && <div className="skel artwork-placeholder" />}
@@ -73,8 +66,8 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
           />
         )}
         {loading && (
-          <div className="artwork-loading-overlay visible">
-            <div className="spin-lg" />
+          <div className="artwork-loading-overlay visible" aria-hidden="true">
+            <div className="artwork-loading-bar" />
           </div>
         )}
       </button>

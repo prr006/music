@@ -87,48 +87,51 @@ export function App() {
           settingsOpen={settingsOpen}
         />
 
-        <div className="workspace">
+        <div className={`workspace${view === 'home' ? ' is-home' : ''}${queueOpen ? ' queue-open' : ''}`}>
+          <div className="workspace-main">
           {view === 'home' ? (
             <div className="home-layout">
-              <div className="stage">
+              <div className="player-stage">
                 {ambient && (
                   <div className="ambient" aria-hidden="true">
                     <img src={ambient} alt="" className="ambient-img visible" />
                     <div className="ambient-vignette" />
                   </div>
                 )}
-                {track ? (
-                  <ArtworkStage
-                    track={track}
-                    playing={state.playing}
-                    loading={state.loading}
-                    onTogglePause={b.togglePause}
-                  />
-                ) : (
-                  <DiscoverStage
+                <div className="player-body">
+                  {track ? (
+                    <ArtworkStage
+                      track={track}
+                      playing={state.playing}
+                      loading={state.loading}
+                      onTogglePause={b.togglePause}
+                    />
+                  ) : (
+                    <DiscoverStage
+                      state={state}
+                      onOpenSearch={openSearch}
+                      onPlay={b.play}
+                    />
+                  )}
+                  <NowPlayingPanel
                     state={state}
-                    onOpenSearch={openSearch}
-                    onPlay={b.play}
+                    theme={theme}
+                    queueOpen={queueOpen}
+                    onTogglePause={b.togglePause}
+                    onNext={b.nextTrack}
+                    onPrevious={b.previousTrack}
+                    onSeekTo={b.seekTo}
+                    onSetVolume={b.setVolume}
+                    onToggleMute={b.toggleMute}
+                    onToggleShuffle={b.toggleShuffle}
+                    onCycleRepeat={b.cycleRepeat}
+                    onToggleFavorite={b.toggleFavorite}
+                    onAddToQueue={b.addToQueue}
+                    onToggleQueue={() => setQueueOpen(o => !o)}
+                    onCycleTheme={cycleTheme}
                   />
-                )}
+                </div>
               </div>
-              <NowPlayingPanel
-                state={state}
-                theme={theme}
-                queueOpen={queueOpen}
-                onTogglePause={b.togglePause}
-                onNext={b.nextTrack}
-                onPrevious={b.previousTrack}
-                onSeekTo={b.seekTo}
-                onSetVolume={b.setVolume}
-                onToggleMute={b.toggleMute}
-                onToggleShuffle={b.toggleShuffle}
-                onCycleRepeat={b.cycleRepeat}
-                onToggleFavorite={b.toggleFavorite}
-                onAddToQueue={b.addToQueue}
-                onToggleQueue={() => setQueueOpen(o => !o)}
-                onCycleTheme={cycleTheme}
-              />
             </div>
           ) : view === 'library' ? (
             <LibraryView
@@ -151,6 +154,7 @@ export function App() {
               onOpenSearch={openSearch}
             />
           )}
+          </div>
 
           {queueOpen && (
             <div className="drawer-scrim" onClick={() => setQueueOpen(false)} />

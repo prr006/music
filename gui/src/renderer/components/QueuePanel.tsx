@@ -18,11 +18,13 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
 
   return (
     <div
-      className={`drawer${open ? ' open' : ''}`}
+      className={`drawer queue-panel${open ? ' open' : ''}`}
       role="complementary"
       aria-label="Queue"
       aria-hidden={!open}
+      {...(!open ? { inert: true } : {})}
     >
+      <div className="queue-panel-inner">
       <div className="drawer-header">
         <div>
           <div className="page-title sm">Queue</div>
@@ -96,6 +98,7 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
             <p>Queue is empty</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
