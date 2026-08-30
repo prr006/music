@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -27,7 +28,14 @@ pub struct MpvState {
     pub idle_active: bool,
 }
 
-type MpvStream = Box<dyn AsyncRead + AsyncWrite + Unpin + Send>;
+/// Combined read/write trait used by the MPV IPC stream. Rust does not allow a
+/// trait object to contain two non-auto traits directly, so this blends the
+/// Tokio async read/write traits into one object-safe trait.
+pub trait AsyncReadWrite: AsyncRead + AsyncWrite {}
+
+impl<T> AsyncReadWrite for T where T: AsyncRead + AsyncWrite {}
+
+type MpvStream = Box<dyn AsyncReadWrite + Unpin + Send>;
 
 async fn connect_mpv(pipe: &str) -> io::Result<MpvStream> {
     #[cfg(windows)]
@@ -141,8 +149,12 @@ impl Mpv {
                 .collect();
             let mut entries = vec![dir.to_string_lossy().to_string()];
             entries.extend(current_entries);
-            let new_path = std::env::join_paths(entries.iter().map(std::path::Path::new))
-                .unwrap_or(current);
+            let new_path: OsString = match std::env::join_paths(entries.iter().map(std::path::Path::new)) {
+                Ok(path) => path.into_os_string(),
+                // If the inherited PATH contains an entry that cannot be joined,
+                // fall back to the original value rather than dropping it.
+                Err(_) => OsString::from(current),
+            };
             command.env("Path", &new_path);
             command.env("PATH", &new_path);
         }

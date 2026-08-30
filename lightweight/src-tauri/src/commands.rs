@@ -70,10 +70,9 @@ async fn play_track_and_refill(state: &AppState, track: Track) -> u64 {
     generation
 }
 
-#[tauri::command]
-pub async fn backend_send(
+async fn backend_send_impl(
     app: AppHandle,
-    state: State<'_, AppState>,
+    state: &AppState,
     command: Value,
 ) -> ControlResponse {
     let cmd_type = str_field(&command, "type").unwrap_or_default();
@@ -88,7 +87,7 @@ pub async fn backend_send(
                 Ok(mut list) if !list.is_empty() => list.remove(0),
                 _ => return ControlResponse::err("No results found."),
             };
-            play_track_and_refill(state.inner(), track).await;
+            play_track_and_refill(state, track).await;
             ControlResponse::ok("Playing.")
         }
         "play-track" => {
@@ -96,7 +95,7 @@ pub async fn backend_send(
                 Ok(t) => t,
                 Err(e) => return e,
             };
-            play_track_and_refill(state.inner(), track).await;
+            play_track_and_refill(state, track).await;
             ControlResponse::ok("Playing.")
         }
         "mute" => {
@@ -111,7 +110,7 @@ pub async fn backend_send(
                     Err(e) => return ControlResponse::err(e.to_string()),
                 }
             };
-            let state2 = (*state.inner()).clone();
+            let state2 = state.clone();
             tauri::async_runtime::spawn(async move {
                 refill_engine(&state2, request).await;
             });
@@ -238,7 +237,7 @@ pub async fn backend_send(
             ControlResponse::ok("Playback stopped.")
         }
         "quit" => {
-            let cloned = (*state.inner()).clone();
+            let cloned = state.clone();
             let app_handle = app.clone();
             tauri::async_runtime::spawn(async move {
                 let mut engine = cloned.engine.lock().await;
@@ -444,16 +443,26 @@ pub async fn backend_send(
 }
 
 #[tauri::command]
-pub async fn backend_is_connected(state: State<'_, AppState>) -> bool {
-    *state.connection.lock().await == crate::types::ConnectionState::Connected
+pub async fn backend_send(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    command: Value,
+) -> Result<ControlResponse, String> {
+    Ok(backend_send_impl(app, state.inner(), command).await)
 }
 
 #[tauri::command]
-pub async fn backend_get_connection_state(state: State<'_, AppState>) -> String {
-    state.connection.lock().await.as_str().to_string()
+pub async fn backend_is_connected(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(*state.connection.lock().await == crate::types::ConnectionState::Connected)
 }
 
 #[tauri::command]
-pub async fn backend_retry(state: State<'_, AppState>) {
+pub async fn backend_get_connection_state(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state.connection.lock().await.as_str().to_string())
+}
+
+#[tauri::command]
+pub async fn backend_retry(state: State<'_, AppState>) -> Result<(), String> {
     *state.connection.lock().await = crate::types::ConnectionState::Connecting;
+    Ok(())
 }

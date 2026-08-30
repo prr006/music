@@ -141,8 +141,8 @@ pub fn run() {
                     .menu(&menu)
                     .show_menu_on_left_click(true)
                     .tooltip("MELO — light YouTube Music player")
-                    .on_menu_event(|app, event| {
-                        let id = event.id().to_string();
+                    .on_menu_event(move |app, event| {
+                        let id = event.id().as_ref();
                         if id == "show" {
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
