@@ -36,8 +36,8 @@ export function MiniPlayer({
       <button className="mini-meta" onClick={onOpenHome} title="Open now playing">
         <img src={artworkFor(currentTrack)} alt="" className="mini-art" />
         <div className="mini-text">
-          <div className="mini-title truncate">{currentTrack.title}</div>
-          <div className="mini-artist truncate">{currentTrack.uploader || 'Unknown'}</div>
+          <div className="mini-title truncate" title={currentTrack.title}>{currentTrack.title}</div>
+          <div className="mini-artist truncate" title={currentTrack.uploader || 'Unknown'}>{currentTrack.uploader || 'Unknown'}</div>
         </div>
       </button>
 

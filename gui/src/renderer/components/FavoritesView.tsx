@@ -43,8 +43,8 @@ export function FavoritesView({ state, onPlay, onToggleFavorite, onOpenSearch }:
                   <img src={artworkFor(track)} alt="" />
                 </div>
                 <div className="track-row-info">
-                  <div className="track-row-name truncate">{track.title}</div>
-                  <div className="track-row-artist truncate">{track.uploader || 'Unknown'}</div>
+                  <div className="track-row-name truncate" title={track.title}>{track.title}</div>
+                  <div className="track-row-artist truncate" title={track.uploader || 'Unknown'}>{track.uploader || 'Unknown'}</div>
                 </div>
                 {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
                 <button

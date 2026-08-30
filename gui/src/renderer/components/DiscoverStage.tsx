@@ -52,8 +52,8 @@ export function DiscoverStage({ state, onOpenSearch, onPlay }: DiscoverStageProp
                 aria-label={`Play ${track.title}`}
               >
                 <img src={artworkFor(track)} alt="" />
-                <span className="truncate">{track.title}</span>
-                <span className="muted truncate">{track.uploader}</span>
+                <span className="truncate" title={track.title}>{track.title}</span>
+                <span className="muted truncate" title={track.uploader}>{track.uploader}</span>
                 {track.duration ? <span className="muted">{fmt(track.duration)}</span> : null}
               </button>
             ))}

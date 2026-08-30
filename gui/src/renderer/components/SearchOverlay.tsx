@@ -36,6 +36,12 @@ export function SearchOverlay({
 
   useEffect(() => { setFocusedIdx(null); }, [results]);
 
+  useEffect(() => {
+    if (focusedIdx === null) return;
+    document.querySelector<HTMLElement>('.search-card .track-row.focused')
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [focusedIdx]);
+
   const handlePlay = useCallback((t: Track) => {
     onPlay(t);
     onClose();
@@ -52,6 +58,7 @@ export function SearchOverlay({
         e.preventDefault();
         setFocusedIdx(prev => prev === null ? results.length - 1 : Math.max(prev - 1, 0));
       } else if (e.key === 'Enter' && focusedIdx !== null && results[focusedIdx]) {
+        if ((e.target as HTMLElement | null)?.tagName === 'INPUT') return;
         e.preventDefault();
         handlePlay(results[focusedIdx]);
       }
@@ -111,7 +118,12 @@ export function SearchOverlay({
             </div>
             <div className="chip-row wrap">
               {recentUnique.map(t => (
-                <button key={t.id} className="chip" onClick={() => handlePlay(t)}>
+                <button
+                  key={t.id}
+                  className="chip"
+                  title={t.title}
+                  onClick={() => handlePlay(t)}
+                >
                   {t.title}
                 </button>
               ))}
@@ -151,20 +163,22 @@ export function SearchOverlay({
                     <img src={artworkFor(track)} alt="" />
                   </div>
                   <div className="track-row-info">
-                    <div className="track-row-name truncate">{track.title}</div>
-                    <div className="track-row-artist truncate">{track.uploader || 'Unknown artist'}</div>
+                    <div className="track-row-name truncate" title={track.title}>{track.title}</div>
+                    <div className="track-row-artist truncate" title={track.uploader || 'Unknown artist'}>{track.uploader || 'Unknown artist'}</div>
                   </div>
-                  {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
-                  <div className="track-row-actions">
-                    <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); onPlayNext(track); }} aria-label="Play next">
-                      <SkipForward size={13} />
-                    </button>
-                    <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); onAddToQueue(track); }} aria-label="Add to queue">
-                      <ListPlus size={13} />
-                    </button>
-                    <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); handlePlay(track); }} aria-label="Play">
-                      <Play size={13} />
-                    </button>
+                  <div className="track-row-tail">
+                    {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
+                    <div className="track-row-actions">
+                      <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); onPlayNext(track); }} title="Play next" aria-label="Play next">
+                        <SkipForward size={13} />
+                      </button>
+                      <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); onAddToQueue(track); }} title="Add to queue" aria-label="Add to queue">
+                        <ListPlus size={13} />
+                      </button>
+                      <button className="ghost-btn sm" onClick={e => { e.stopPropagation(); handlePlay(track); }} title="Play" aria-label="Play">
+                        <Play size={13} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

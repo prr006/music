@@ -39,10 +39,10 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
         {currentTrack && (
           <div className="queue-now">
             <img src={artworkFor(currentTrack)} alt="" />
-            <div>
+            <div className="queue-now-info">
               <div className="queue-now-label">Now playing</div>
-              <div className="truncate">{currentTrack.title}</div>
-              <div className="muted truncate">{currentTrack.uploader}</div>
+              <div className="truncate" title={currentTrack.title}>{currentTrack.title}</div>
+              <div className="muted truncate" title={currentTrack.uploader}>{currentTrack.uploader}</div>
             </div>
           </div>
         )}
@@ -63,19 +63,22 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
                 >
                   <img src={artworkFor(qi.track)} alt="" className="track-row-art-img" />
                   <div className="track-row-info">
-                    <div className="track-row-name truncate">{qi.track.title}</div>
-                    <div className="track-row-artist truncate">
+                    <div className="track-row-name truncate" title={qi.track.title}>{qi.track.title}</div>
+                    <div className="track-row-artist truncate" title={`${qi.track.uploader || 'Unknown'} · ${qi.source}`}>
                       {qi.track.uploader || 'Unknown'} · {qi.source}
                     </div>
                   </div>
-                  {qi.track.duration ? <span className="track-row-dur">{fmt(qi.track.duration)}</span> : null}
-                  <button
-                    className="ghost-btn sm row-action"
-                    onClick={e => { e.stopPropagation(); onRemove(i); }}
-                    aria-label={`Remove ${qi.track.title}`}
-                  >
-                    <X size={12} />
-                  </button>
+                  <div className="track-row-tail">
+                    {qi.track.duration ? <span className="track-row-dur">{fmt(qi.track.duration)}</span> : null}
+                    <button
+                      className="ghost-btn sm row-action"
+                      onClick={e => { e.stopPropagation(); onRemove(i); }}
+                      title="Remove from queue"
+                      aria-label={`Remove ${qi.track.title}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
                 </div>
               );
             })}

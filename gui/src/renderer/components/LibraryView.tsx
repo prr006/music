@@ -97,8 +97,8 @@ export function LibraryView({ state, onPlay, onToggleFavorite, onOpenSearch }: L
                     )}
                   </button>
                   <div className="album-meta">
-                    <div className="album-title truncate">{track.title}</div>
-                    <div className="album-artist truncate">{track.uploader || 'Unknown'}</div>
+                    <div className="album-title truncate" title={track.title}>{track.title}</div>
+                    <div className="album-artist truncate" title={track.uploader || 'Unknown'}>{track.uploader || 'Unknown'}</div>
                     <button
                       className={`ghost-btn sm${isFav ? ' fav' : ''}`}
                       onClick={() => onToggleFavorite(track)}

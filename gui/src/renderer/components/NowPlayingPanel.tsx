@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1,
@@ -31,6 +31,34 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   if (theme === 'light') return <Sun size={16} strokeWidth={1.6} />;
   if (theme === 'dark') return <Moon size={16} strokeWidth={1.6} />;
   return <Monitor size={16} strokeWidth={1.6} />;
+}
+
+function FitTitle({ text }: { text: string }) {
+  const ref = useRef<HTMLHeadingElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const fit = () => {
+      el.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      const min = 16;
+      while (el.scrollHeight > el.clientHeight + 1 && size > min) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  return (
+    <h1 ref={ref} className="np-title" title={text}>{text}</h1>
+  );
 }
 
 function ProgressBar({
@@ -129,13 +157,11 @@ export function NowPlayingPanel({
 
       <div className="np-body">
         {currentTrack?.album && (
-          <div className="np-album">{currentTrack.album}</div>
+          <div className="np-album truncate" title={currentTrack.album}>{currentTrack.album}</div>
         )}
-        <h1 className="np-title">
-          {idle ? 'Nothing playing' : (currentTrack?.title || 'Unknown Track')}
-        </h1>
+        <FitTitle text={idle ? 'Nothing playing' : (currentTrack?.title || 'Unknown Track')} />
         <div className="np-artist-row">
-          <span className="np-artist">
+          <span className="np-artist truncate" title={idle ? undefined : (currentTrack?.uploader || undefined)}>
             {idle ? 'Search to start listening' : (currentTrack?.uploader || 'Unknown Artist')}
           </span>
           {!idle && (
