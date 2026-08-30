@@ -10,7 +10,7 @@ export async function ensureRuntimeDependencies() {
   let missing = RUNTIME_DEPS.filter(dep => !commandExists(dep));
   if (missing.length === 0) return;
 
-  if (process.env.YTMUSIC_SKIP_AUTO_INSTALL === '1') {
+  if (process.env.MELO_SKIP_AUTO_INSTALL === '1') {
     throw new Error(formatMissingDependencies(missing));
   }
 

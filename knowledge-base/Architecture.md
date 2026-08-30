@@ -12,65 +12,63 @@ tags:
 
 ```mermaid
 flowchart TD
-    A[src/index.ts] --> B[src/search.ts]
-    A --> C[src/player.ts]
-    A --> D[src/ui.ts]
-    A --> E[src/config.ts]
-    E --> F[~/.config/yt-music-cli]
-    B --> G[yt-dlp]
-    C --> H[mpv IPC socket]
+    A[src/index.ts / src/backend-headless.ts] --> B[src/melo/app.ts]
+    B --> S[src/melo/search/youtube-search.ts]
+    B --> R[src/melo/radio/youtube-radio.ts]
+    B --> Y[src/melo/youtube/resolver.ts]
+    B --> P[src/melo/playback/mpv-player.ts]
+    B --> Q[src/melo/queue/queue-service.ts]
+    B --> J[src/melo/persistence/json-store.ts]
+    S --> G[yt-dlp]
+    R --> G
+    Y --> G
+    P --> H[mpv IPC socket]
+    J --> F[~/.config/melo]
 ```
 
 ## Modul Sorumluluklari
 
 ### `src/index.ts`
 
-- Uygulamanin state machine'i burada
-- Klavye input routing'i burada
-- Ekranlar arasi gecis mantigi burada
-- Queue, history, current track ve secim indeksleri burada tutuluyor
+- TUI state machine ve klavye routing
+- MELO backend'i (`MeloApp`) uzerinden oynatma
+- Ayni NDJSON control socket protokolunu dinler
+
+### `src/backend-headless.ts`
+
+- Electron GUI icin TUI'siz backend
+- `MeloApp` + control socket
+
+### `src/melo/app.ts`
+
+- Search, resolver, mpv, queue, radio, favorites/history orkestrasyonu
+- Tek authoritative playback state ve event yayini
+
+### `src/melo/playback/mpv-player.ts`
+
+- Yerel `mpv` child process
+- JSON IPC uzerinden play/pause/seek/volume/repeat
+
+### `src/melo/search/youtube-search.ts` / `src/melo/radio/youtube-radio.ts`
+
+- `yt-dlp` ile YouTube arama ve related/radio mix
+- Metadata `Track` tipine normalize edilir
+
+### `src/melo/persistence/json-store.ts`
+
+- Favorites, history, playlists, downloads, settings JSON persistence
+- Disk yolu `getConfigDir()` (`melo`); ilk acilista `ytmusic-cli` verisi kopyalanir, uzerine yazilmaz
 
 ### `src/ui.ts`
 
-- Tum terminal render fonksiyonlari burada
-- ANSI escape sequence ve `chalk` kullaniliyor
-- Arama, sonuclar, player, favoriler ve playlist ekranlari ayrik render ediliyor
-
-### `src/player.ts`
-
-- `mpv` child process baslatiliyor
-- IPC socket uzerinden komut gonderiliyor
-- `observe_property` ile player state senkronize ediliyor
-- `end-file` ve `start-file` event'leri disari aktariliyor
-
-### `src/search.ts`
-
-- `yt-dlp` ile arama sonucu metadata cekiliyor
-- YouTube Radio/Mix playlist'inden yeni kuyruk uretiliyor
-- Gelen JSON satirlari `Track` tipine normalize ediliyor
-
-### `src/config.ts`
-
-- Favori ve playlist verisi diskten okunuyor
-- JSON persistence burada
-- Playlist CRUD ve duplicate kontrolu burada
+- Terminal render fonksiyonlari
 
 ### `src/types.ts`
 
-- `Track` ve `Playlist` veri kontratlari burada tanimli
+- `Track` ve `Playlist` renderer/TUI kontratlari
 
 ## Mimari Karakteri
 
-- Tek process, tek entrypoint
-- Merkezi in-memory state
-- Ayrik ama hafif moduller
-- UI ve is mantigi buyuk olcude `src/index.ts` icinde birlesik
-
-## Teknik Borc / Dikkat Noktalari
-
-> [!warning]
-> Uygulama state'i buyudukce `src/index.ts` icindeki kosul ve ekran handler yogunlugu artiyor. Ileride ekran bazli modul ayirma veya daha resmi bir state machine yapisi faydali olabilir.
-
-- i18n henuz yok; UI metinleri cogunlukla hardcoded
-- Persistence katmani JSON dosyalarina dayali; migration katmani yok
-- Search, queue ve UI davranislari test yerine agirlikla manuel checklist ile korunuyor
+- YouTube kaynagi: `yt-dlp`
+- Oynatma: yerel `mpv`
+- GUI, preload/renderer IPC komut isimlerini degistirmeden NDJSON control socket kullanir

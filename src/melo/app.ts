@@ -5,6 +5,7 @@ import { FavoritesService } from './favorites/favorites-service';
 import { HistoryService } from './history/history-service';
 import { LibraryService } from './library/library-service';
 import { JsonStore } from './persistence/json-store';
+import { migrateUserData } from './persistence/migrate';
 import { MpvPlayer } from './playback/mpv-player';
 import { QueueService } from './queue/queue-service';
 import { YoutubeRadio } from './radio/youtube-radio';
@@ -57,6 +58,7 @@ export class MeloApp extends EventEmitter {
 
   constructor(deps: MeloDeps = {}) {
     super();
+    if (!deps.store) migrateUserData();
     const store = deps.store ?? new JsonStore();
     this.playback = deps.playback ?? new MpvPlayer();
     this.searchProvider = deps.search ?? new YoutubeSearch();

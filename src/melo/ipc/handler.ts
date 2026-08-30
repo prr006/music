@@ -131,7 +131,7 @@ export function createControlHandler(app: MeloApp, onQuit: () => void) {
           return { ok: true, message: 'Playback stopped.' };
         case 'quit':
           setTimeout(onQuit, 50);
-          return { ok: true, message: 'Closing ytmusic-player.' };
+          return { ok: true, message: 'Closing MELO.' };
         case 'add-to-queue': {
           if (!command.track?.id) return { ok: false, message: 'add-to-queue requires a track.' };
           app.addToQueue(command.track);

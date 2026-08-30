@@ -106,7 +106,7 @@ type TranslationKey =
 
 const translations: Record<Lang, Record<TranslationKey, string>> = {
   en: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Select Language',
     searchTitle: 'Search Results',
     favoritesTitle: 'Favorites',
@@ -186,7 +186,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Download / Delete',
   },
   az: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Dil secin',
     searchTitle: 'Axtaris neticeleri',
     favoritesTitle: 'Sevimliler',
@@ -266,7 +266,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Yukle / Sil',
   },
   tr: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Dil secin',
     searchTitle: 'Arama sonuclari',
     favoritesTitle: 'Favoriler',
@@ -346,7 +346,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Indir / Sil',
   },
   es: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Seleccionar idioma',
     searchTitle: 'Resultados de busqueda',
     favoritesTitle: 'Favoritos',
@@ -426,7 +426,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Descargar / Borrar',
   },
   de: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Sprache waehlen',
     searchTitle: 'Suchergebnisse',
     favoritesTitle: 'Favoriten',
@@ -506,7 +506,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Download / Loeschen',
   },
   fr: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Choisir la langue',
     searchTitle: 'Resultats de recherche',
     favoritesTitle: 'Favoris',
@@ -586,7 +586,7 @@ const translations: Record<Lang, Record<TranslationKey, string>> = {
     helpDownloadDelete: 'Telecharger / Supprimer',
   },
   ru: {
-    appName: 'ytmusic-cli',
+    appName: 'MELO',
     languageTitle: 'Vybor yazyka',
     searchTitle: 'Rezultaty poiska',
     favoritesTitle: 'Izbrannoe',

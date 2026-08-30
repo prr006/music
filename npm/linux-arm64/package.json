@@ -1,7 +1,7 @@
 {
-  "name": "@mammadovziya/ytmusic-player-linux-arm64",
+  "name": "melo-linux-arm64",
   "version": "0.3.7",
-  "description": "Linux arm64 native binary for ytmusic-player",
+  "description": "Linux arm64 native binary for MELO",
   "os": [
     "linux"
   ],

@@ -15,29 +15,29 @@ Her release oncesi bu listeyi kontrol et.
 - [ ] Sarki adi yazinca sonuclar listelenir
 - [ ] Bos arama yapinca bir sey olmaz
 - [ ] Sonuc bulunamazsa uyari gosterilir
-- [ ] `ym -s alors on danse` en yaxsi neticeni birbasa caldirir
-- [ ] Player artiq aciq olanda `ym -s alors on danse` eyni prosesde yeni mahnini caldirir
-- [ ] Player aciq olmayanda `ym play alors on danse` yeni player basladir ve mahnini caldirir
-- [ ] `ym --search "Alors on danse"` uzun option ile eyni qaydada calisir
-- [ ] `ym -s` song adi olmadan istifade edilende usage mesaji ve non-zero exit code qaytarir
+- [ ] `melo -s alors on danse` en yaxsi neticeni birbasa caldirir
+- [ ] Player artiq aciq olanda `melo -s alors on danse` eyni prosesde yeni mahnini caldirir
+- [ ] Player aciq olmayanda `melo play alors on danse` yeni player basladir ve mahnini caldirir
+- [ ] `melo --search "Alors on danse"` uzun option ile eyni qaydada calisir
+- [ ] `melo -s` song adi olmadan istifade edilende usage mesaji ve non-zero exit code qaytarir
 
 ## CLI Remote Control
 
-- [ ] `ym mute` ve `ym m` mute rejimini toggle edir
-- [ ] `ym next` / `ym n` ve `ym prev` / `ym p` queue-history sirasini idare edir
-- [ ] `ym pause`, `ym resume` ve `ym toggle` / `ym t` playback halini deyisir
-- [ ] `ym volume 50`, `ym volume +10` ve `ym volume -10` sesi dogru limitlerle deyisir
-- [ ] `ym seek +10` ve `ym seek -10` nisbi seek edir
-- [ ] `ym now` / `ym i` cari mahnini, `ym status` ise player veziyyetini gosterir
-- [ ] `ym shuffle on`, `ym shuffle off` ve `ym x` shuffle rejimini idare edir
-- [ ] `ym repeat off`, `ym repeat one` ve `ym repeat all` repeat rejimini idare edir
-- [ ] `ym favorite` / `ym f` cari mahninin favorite veziyyetini toggle edir
-- [ ] `ym download` / `ym d` cari mahnini download edir ve duplicate download baslatmir
-- [ ] `ym queue` sirani gosterir, `ym queue clear` sirani temizleyir
-- [ ] `ym stop` playback-i dayandirir amma player prosesini aciq saxlayir
-- [ ] `ym quit` / `ym q` player-i ve control socket-i temiz baglayir
+- [ ] `melo mute` ve `melo m` mute rejimini toggle edir
+- [ ] `melo next` / `melo n` ve `melo prev` / `melo p` queue-history sirasini idare edir
+- [ ] `melo pause`, `melo resume` ve `melo toggle` / `melo t` playback halini deyisir
+- [ ] `melo volume 50`, `melo volume +10` ve `melo volume -10` sesi dogru limitlerle deyisir
+- [ ] `melo seek +10` ve `melo seek -10` nisbi seek edir
+- [ ] `melo now` / `melo i` cari mahnini, `melo status` ise player veziyyetini gosterir
+- [ ] `melo shuffle on`, `melo shuffle off` ve `melo x` shuffle rejimini idare edir
+- [ ] `melo repeat off`, `melo repeat one` ve `melo repeat all` repeat rejimini idare edir
+- [ ] `melo favorite` / `melo f` cari mahninin favorite veziyyetini toggle edir
+- [ ] `melo download` / `melo d` cari mahnini download edir ve duplicate download baslatmir
+- [ ] `melo queue` sirani gosterir, `melo queue clear` sirani temizleyir
+- [ ] `melo stop` playback-i dayandirir amma player prosesini aciq saxlayir
+- [ ] `melo quit` / `melo q` player-i ve control socket-i temiz baglayir
 - [ ] Player aciq olmayanda play/search xaric remote command aydin xeta ve non-zero exit code qaytarir
-- [ ] Ikinci `ym` prosesi acilanda movcud player socket-i silinmir
+- [ ] Ikinci `melo` prosesi acilanda movcud player socket-i silinmir
 
 ## Arama Sonuclari
 
@@ -180,25 +180,25 @@ Her release oncesi bu listeyi kontrol et.
 
 - [ ] `yt-dlp` arama, mix ve indirme komutlari user config, cache ve cookies olmadan calisir
 - [ ] `mpv` user config, disk cache, resume file, cookies ve watch history olmadan baslar
-- [ ] `YTMUSIC_PROXY` ayarlandiginda yt-dlp proxy argumani alir
+- [ ] `MELO_PROXY` ayarlandiginda yt-dlp proxy argumani alir
 
 ## Windows
 
-- [ ] Temiz Windows ortaminda `npm install -g ytmusic-player` eksik `mpv` ve `yt-dlp` bagimliliklarini `winget` ile kurmaya calisir
-- [ ] npm lifecycle scriptleri `--ignore-scripts` ile kapatildiginda eksik bagimliliklar `ym` ilk calismada kurulur
+- [ ] Temiz Windows ortaminda `npm install -g melo` eksik `mpv` ve `yt-dlp` bagimliliklarini `winget` ile kurmaya calisir
+- [ ] npm lifecycle scriptleri `--ignore-scripts` ile kapatildiginda eksik bagimliliklar `melo` ilk calismada kurulur
 - [ ] Kurulumdan sonra uygulama ayni terminal oturumunda `mpv` ve `yt-dlp` executable'larini bulur
-- [ ] `YTMUSIC_SKIP_AUTO_INSTALL=1` ayarliyken eksik bagimlilik varsa uygulama otomatik kurulum yapmadan manuel kurulum mesaji verir
-- [ ] `npm install -g ytmusic-player` sonrasi `ym` komutu uygulamayi baslatir
+- [ ] `MELO_SKIP_AUTO_INSTALL=1` ayarliyken eksik bagimlilik varsa uygulama otomatik kurulum yapmadan manuel kurulum mesaji verir
+- [ ] `npm install -g melo` sonrasi `melo` komutu uygulamayi baslatir
 - [ ] Ilk sarki secildiginde mpv IPC hatasi olmadan calmaya baslar
-- [ ] Favoriler, playlistler ve ayarlar `%APPDATA%\ytmusic-cli` altinda kalici olur
+- [ ] Favoriler, playlistler ve ayarlar `%APPDATA%\melo` altinda kalici olur
 
 ## macOS
 
-- [ ] Temiz macOS ortaminda `npm install -g ytmusic-player` eksik `mpv` ve `yt-dlp` bagimliliklarini Homebrew ile kurar
-- [ ] `npm install -g ytmusic-player` sonrasi `ym` komutu uygulamayi baslatir
-- [ ] npm lifecycle scriptleri `--ignore-scripts` ile kapatildiginda eksik bagimliliklar `ym` ilk calismada kurulur
-- [ ] Apple Silicon kurulumunda `@mammadovziya/ytmusic-player-darwin-arm64` paketi kullanilir
-- [ ] Intel kurulumunda `@mammadovziya/ytmusic-player-darwin-x64` paketi kullanilir
+- [ ] Temiz macOS ortaminda `npm install -g melo` eksik `mpv` ve `yt-dlp` bagimliliklarini Homebrew ile kurar
+- [ ] `npm install -g melo` sonrasi `melo` komutu uygulamayi baslatir
+- [ ] npm lifecycle scriptleri `--ignore-scripts` ile kapatildiginda eksik bagimliliklar `melo` ilk calismada kurulur
+- [ ] Apple Silicon kurulumunda `melo-darwin-arm64` paketi kullanilir
+- [ ] Intel kurulumunda `melo-darwin-x64` paketi kullanilir
 - [ ] Ilk sarki secildiginde mpv IPC socket hatasi olmadan calmaya baslar
 
 ## Release Packaging
@@ -209,8 +209,8 @@ Her release oncesi bu listeyi kontrol et.
 - [ ] `bun run check:npm-install` temiz npm kurulumunu, dependency lifecycle scriptini ve CLI versiyasini dogrular
 - [ ] CI Linux, macOS ve Windows native binary smoke testlerini tamamlar
 - [ ] Homebrew formula URL ve SHA256 deyerleri son GitHub release ile eslesir
-- [ ] npm'deki `ytmusic-player` ve tum scoped platform paketleri yeni surumu gosterir
-- [ ] Temiz global npm kurulumunda `ym --version` yayinlanan surumle eslesir
+- [ ] npm'deki `melo` ve tum platform paketleri yeni surumu gosterir
+- [ ] Temiz global npm kurulumunda `melo --version` yayinlanan surumle eslesir
 
 ## Genel
 

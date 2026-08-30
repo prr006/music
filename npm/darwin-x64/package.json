@@ -1,7 +1,7 @@
 {
-  "name": "@mammadovziya/ytmusic-player-darwin-x64",
+  "name": "melo-darwin-x64",
   "version": "0.3.7",
-  "description": "macOS x64 native binary for ytmusic-player",
+  "description": "macOS x64 native binary for MELO",
   "os": [
     "darwin"
   ],

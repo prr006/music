@@ -30,7 +30,7 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
             {hasQueue ? `${queue.length} up next` : 'Listening now'}
           </div>
         </div>
-        <button className="ghost-btn" onClick={onClose} title="Close queue" aria-label="Close queue">
+        <button className="ghost-btn" onClick={onClose} aria-label="Close queue">
           <X size={16} />
         </button>
       </div>

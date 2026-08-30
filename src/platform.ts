@@ -2,34 +2,52 @@ import { accessSync, constants, existsSync, readdirSync, statSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { delimiter, join } from 'path';
 
-const APP_DIR = 'ytmusic-cli';
+const APP_DIR = 'melo';
+const LEGACY_APP_DIR = 'ytmusic-cli';
 
 export const isWindows = process.platform === 'win32';
 
-export function getConfigDir(): string {
+function configBase(): string {
   if (isWindows) {
-    const base = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
-    return join(base, APP_DIR);
+    return process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
   }
+  return process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+}
 
-  const base = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
-  return join(base, APP_DIR);
+export function getConfigDir(): string {
+  return join(configBase(), APP_DIR);
+}
+
+export function getLegacyConfigDir(): string {
+  return join(configBase(), LEGACY_APP_DIR);
 }
 
 export function getMusicDir(): string {
   return join(homedir(), 'Music', APP_DIR);
 }
 
+export function getLegacyMusicDir(): string {
+  return join(homedir(), 'Music', LEGACY_APP_DIR);
+}
+
+export function firstEnv(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 export function getMpvIpcPath(): string {
   if (isWindows) {
-    return `\\\\.\\pipe\\ytmusic-player-mpv-${process.pid}`;
+    return `\\\\.\\pipe\\melo-mpv-${process.pid}`;
   }
 
-  return join(tmpdir(), `ytmusic-player-mpv-${process.pid}.sock`);
+  return join(tmpdir(), `melo-mpv-${process.pid}.sock`);
 }
 
 export function getControlIpcPath(): string {
-  const override = process.env.YTMUSIC_CONTROL_SOCKET?.trim();
+  const override = firstEnv('MELO_CONTROL_SOCKET');
   if (override) return override;
 
   const userId = process.getuid?.().toString()
@@ -37,10 +55,10 @@ export function getControlIpcPath(): string {
     || 'user';
 
   if (isWindows) {
-    return `\\\\.\\pipe\\ytmusic-player-control-${userId}`;
+    return `\\\\.\\pipe\\melo-control-${userId}`;
   }
 
-  return join(tmpdir(), `ytmusic-player-control-${userId}.sock`);
+  return join(tmpdir(), `melo-control-${userId}.sock`);
 }
 
 export function refreshExecutablePath() {

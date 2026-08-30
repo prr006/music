@@ -20,7 +20,7 @@ try {
   cliCommand = parseCliArgs(process.argv.slice(2));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`ytmusic-player: ${message}\n\n${CLI_HELP}\n`);
+  process.stderr.write(`melo: ${message}\n\n${CLI_HELP}\n`);
   process.exit(1);
 }
 
@@ -372,7 +372,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       setTimeout(() => {
         void cleanup().finally(() => process.exit(0));
       }, 50);
-      return { ok: true, message: 'Closing ytmusic-player.' };
+      return { ok: true, message: 'Closing MELO.' };
     // ─── Extended protocol commands ─────────────────────────────────────
     case 'add-to-queue': {
       engine.addToQueue(command.track);
@@ -1053,7 +1053,7 @@ function printControlResponse(response: ControlResponse) {
 
 async function runInteractive(initialQuery: string | null) {
   if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
-    throw new Error('Starting ytmusic-player requires an interactive terminal.');
+    throw new Error('Starting MELO requires an interactive terminal.');
   }
 
   await ensureRuntimeDependencies();
@@ -1146,7 +1146,7 @@ async function main() {
         return;
       }
 
-      process.stderr.write('ytmusic-player: no player is running. Start one with `ym` or `ym play <song name>`.\n');
+      process.stderr.write('melo: no player is running. Start one with `melo` or `melo play <song name>`.\n');
       process.exitCode = 1;
       return;
     }
@@ -1154,7 +1154,7 @@ async function main() {
 
   try {
     await sendControlCommand({ type: 'status' }, { timeout: 1000 });
-    process.stderr.write('ytmusic-player: another player is already running. Use `ym status` or another control command.\n');
+    process.stderr.write('melo: another player is already running. Use `melo status` or another control command.\n');
     process.exitCode = 1;
     return;
   } catch (error) {
@@ -1167,6 +1167,6 @@ async function main() {
 main().catch(async (e) => {
   if (playerStarted || terminalStarted || controlServer) await cleanup();
   const message = e instanceof Error ? e.message : String(e);
-  process.stderr.write(`ytmusic-player: ${message}\n`);
+  process.stderr.write(`melo: ${message}\n`);
   process.exitCode = 1;
 });

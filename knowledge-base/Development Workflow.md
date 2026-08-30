@@ -30,9 +30,9 @@ tags:
 
 ## Packaging Modeli
 
-- Ana paket: `yt-music-cli`
-- Platform paketleri: `npm/darwin-*`, `npm/linux-*`, `npm/win32-*`
-- `bin/yt-music` dogru platform binary'sini resolve ediyor
+- Yayinlanan npm paket adi: `melo`
+- Platform paketleri: `melo-darwin-*`, `melo-linux-*`, `melo-win32-*`
+- `bin/melo` dogru platform binary'sini resolve ediyor
 
 ## Operasyon Kaynaklari
 

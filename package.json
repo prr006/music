@@ -1,24 +1,23 @@
 {
-  "name": "ytmusic-player",
+  "name": "melo",
   "version": "0.3.7",
   "packageManager": "bun@1.3.14",
-  "description": "Fast YouTube Music terminal player for Windows, macOS, and Linux, powered by mpv and yt-dlp.",
+  "description": "MELO — fast YouTube music player for Windows, macOS, and Linux, powered by mpv and yt-dlp.",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://github.com/mammadovziya/ytmusic-player#readme",
+  "homepage": "https://github.com/prr006/music#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mammadovziya/ytmusic-player.git"
+    "url": "git+https://github.com/prr006/music.git"
   },
   "bugs": {
-    "url": "https://github.com/mammadovziya/ytmusic-player/issues"
+    "url": "https://github.com/prr006/music/issues"
   },
   "bin": {
-    "ytmusic-player": "bin/ytmusic-cli",
-    "ym": "bin/ytmusic-cli"
+    "melo": "bin/melo"
   },
   "files": [
-    "bin/ytmusic-cli",
+    "bin/melo",
     "scripts/install-runtime-deps.js",
     "README.md",
     "LICENSE"
@@ -37,18 +36,16 @@
     "check:control-cli": "bun scripts/check-control-cli.ts"
   },
   "optionalDependencies": {
-    "@mammadovziya/ytmusic-player-darwin-arm64": "0.3.7",
-    "@mammadovziya/ytmusic-player-darwin-x64": "0.3.7",
-    "@mammadovziya/ytmusic-player-linux-x64": "0.3.7",
-    "@mammadovziya/ytmusic-player-linux-arm64": "0.3.7",
-    "@mammadovziya/ytmusic-player-win32-x64": "0.3.7"
+    "melo-darwin-arm64": "0.3.7",
+    "melo-darwin-x64": "0.3.7",
+    "melo-linux-x64": "0.3.7",
+    "melo-linux-arm64": "0.3.7",
+    "melo-win32-x64": "0.3.7"
   },
   "keywords": [
+    "melo",
     "youtube",
     "youtube-music",
-    "youtube-music-cli",
-    "youtube-player",
-    "ytmusic",
     "music",
     "music-player",
     "cli",
@@ -60,7 +57,6 @@
     "mpv",
     "mpv-player",
     "yt-dlp",
-    "yt-dlp-wrapper",
     "offline-music",
     "playlist-manager",
     "privacy",

@@ -7,7 +7,7 @@ import { LibraryService } from '../src/melo/library/library-service';
 import { JsonStore } from '../src/melo/persistence/json-store';
 import type { Track } from '../src/types';
 
-const configRoot = mkdtempSync(join(tmpdir(), 'ytmusic-player-config-test-'));
+const configRoot = mkdtempSync(join(tmpdir(), 'melo-config-test-'));
 
 afterAll(() => {
   rmSync(configRoot, { recursive: true, force: true });

@@ -9,10 +9,10 @@ const root = join(import.meta.dir, '..');
 const platformPackage = PLATFORM_PACKAGES.find(platform => platform.dir === `${process.platform}-${process.arch}`);
 if (!platformPackage) throw new Error(`No CLI control smoke target for ${process.platform} ${process.arch}.`);
 
-const temporaryPrefix = join(tmpdir(), 'ytmusic-player-control-cli-');
+const temporaryPrefix = join(tmpdir(), 'melo-control-cli-');
 const temporaryDirectory = await mkdtemp(temporaryPrefix);
 const socketPath = process.platform === 'win32'
-  ? `\\\\.\\pipe\\ytmusic-player-control-cli-${process.pid}`
+  ? `\\\\.\\pipe\\melo-control-cli-${process.pid}`
   : join(temporaryDirectory, 'control.sock');
 const binaryPath = join(root, 'npm', platformPackage.dir, 'bin', platformPackage.binary);
 const received: ControlCommand[] = [];
@@ -25,7 +25,7 @@ const server = new ControlServer(command => {
 
 async function run(args: string[], expectedExitCode = 0): Promise<string> {
   const proc = Bun.spawn([binaryPath, ...args], {
-    env: { ...process.env, YTMUSIC_CONTROL_SOCKET: socketPath },
+    env: { ...process.env, MELO_CONTROL_SOCKET: socketPath },
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',

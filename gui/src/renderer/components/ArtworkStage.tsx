@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, type SyntheticEvent } from 'react';
 import type { Track } from '../../shared/types';
 import { artworkFor, thumbMq } from '../lib/media';
 
@@ -12,17 +12,20 @@ interface ArtworkStageProps {
 export function ArtworkStage({ track, playing, loading, onTogglePause }: ArtworkStageProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [src, setSrc] = useState('');
+  const [shape, setShape] = useState<'wide' | 'square' | 'tall'>('wide');
   const prevId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!track) {
       setSrc('');
       setImgLoaded(false);
+      setShape('wide');
       prevId.current = null;
       return;
     }
     if (track.id !== prevId.current) {
       setImgLoaded(false);
+      setShape('wide');
       setSrc(artworkFor(track, true));
       prevId.current = track.id;
     }
@@ -34,6 +37,14 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
     }
   }, [src, track]);
 
+  const handleLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    setImgLoaded(true);
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+    if (!w || !h) return;
+    const r = w / h;
+    setShape(r > 1.25 ? 'wide' : r < 0.9 ? 'tall' : 'square');
+  }, []);
+
   if (!track) return null;
 
   return (
@@ -44,6 +55,8 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
           'artwork-tile',
           playing ? 'playing' : 'paused',
           loading ? 'loading' : '',
+          imgLoaded ? 'ready' : '',
+          shape,
         ].filter(Boolean).join(' ')}
         onClick={onTogglePause}
         aria-label={`${playing ? 'Pause' : 'Play'} ${track.title}`}
@@ -55,7 +68,7 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
             src={src}
             alt={track.title}
             className={`artwork-img${imgLoaded ? '' : ' fading'}`}
-            onLoad={() => setImgLoaded(true)}
+            onLoad={handleLoad}
             onError={handleError}
           />
         )}

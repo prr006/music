@@ -30,8 +30,8 @@ describe('npm platform packages', () => {
   }
 
   test('the launcher resolves packages from the maintainer scope', async () => {
-    const launcher = await readFile(join(root, 'bin', 'ytmusic-cli'), 'utf8');
-    expect(launcher).toContain('`@mammadovziya/ytmusic-player-${platformDir}`');
+    const launcher = await readFile(join(root, 'bin', 'melo'), 'utf8');
+    expect(launcher).toContain('`melo-${platformDir}`');
   });
 
   test('the wrapper ships and runs its dependency installer', () => {

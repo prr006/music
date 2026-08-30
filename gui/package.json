@@ -1,5 +1,5 @@
 {
-  "name": "ytmusic-player-gui",
+  "name": "melo-gui",
   "version": "0.1.0",
   "private": true,
   "description": "MELO — desktop music player",
@@ -29,7 +29,7 @@
     "vite": "^6.3.5"
   },
   "build": {
-    "appId": "com.ytmusic-player.gui",
+    "appId": "com.melo.gui",
     "productName": "MELO",
     "win": {
       "target": "nsis",

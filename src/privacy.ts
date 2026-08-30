@@ -45,5 +45,5 @@ export function getMpvPrivacyArgs(): string[] {
 }
 
 function getProxyUrl(): string {
-  return process.env.YTMUSIC_PROXY?.trim() ?? '';
+  return process.env.MELO_PROXY?.trim() || '';
 }

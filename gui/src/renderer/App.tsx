@@ -15,6 +15,7 @@ import { QueuePanel } from './components/QueuePanel';
 import { MiniPlayer } from './components/MiniPlayer';
 import { SettingsPopover } from './components/SettingsPopover';
 import { artworkFor } from './lib/media';
+import { readStoredTheme, writeStoredTheme } from './lib/theme-storage';
 
 function resolveTheme(t: Theme): 'light' | 'dark' {
   if (t === 'system') {
@@ -31,9 +32,7 @@ export function App() {
   const b = useBackend();
   const { state } = b;
 
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem('ym-theme') as Theme) || 'dark'
-  );
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme(localStorage));
   const [view, setView] = useState<View>('home');
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -41,7 +40,7 @@ export function App() {
 
   useEffect(() => {
     applyTheme(theme);
-    localStorage.setItem('ym-theme', theme);
+    writeStoredTheme(theme, localStorage);
   }, [theme]);
 
   useEffect(() => {

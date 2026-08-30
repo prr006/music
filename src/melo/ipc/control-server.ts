@@ -18,7 +18,7 @@ export interface ControlResponse {
 export type ControlHandler = (command: ControlCommand) => Promise<ControlResponse> | ControlResponse;
 
 export class ControlUnavailableError extends Error {
-  constructor(message = 'No running ytmusic-player instance was found.') {
+  constructor(message = 'No running MELO instance was found.') {
     super(message);
     this.name = 'ControlUnavailableError';
   }
@@ -81,7 +81,7 @@ export class ControlServer {
 
     if (!isWindows && existsSync(this.path)) {
       if (await canConnect(this.path)) {
-        throw new Error('Another ytmusic-player instance is already running.');
+        throw new Error('Another MELO instance is already running.');
       }
       cleanupSocketPath(this.path);
     }

@@ -42,10 +42,10 @@ export type CliCommand =
   | { action: 'help' };
 
 export const CLI_HELP = `Usage:
-  ym
-  ym -s <song name>          Play the best search result
-  ym play <song name>        Play the best search result
-  ym <command> [value]       Control the running player
+  melo
+  melo -s <song name>          Play the best search result
+  melo play <song name>        Play the best search result
+  melo <command> [value]       Control the running player
 
 Playback commands:
   mute (m)                   Toggle mute

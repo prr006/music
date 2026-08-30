@@ -282,15 +282,15 @@ export class BackendManager extends EventEmitter {
   // ─── Pipe path computation ──────────────────────────────────────────────
 
   private computePipePath(): string {
-    const override = process.env.YTMUSIC_CONTROL_SOCKET?.trim();
+    const override = process.env.MELO_CONTROL_SOCKET?.trim();
     if (override) return override;
 
     const userId = process.env.USERNAME?.replace(/[^a-zA-Z0-9_-]/g, '_') || 'user';
 
     if (process.platform === 'win32') {
-      return `\\\\.\\pipe\\ytmusic-player-control-${userId}`;
+      return `\\\\.\\pipe\\melo-control-${userId}`;
     }
-    return join(require('os').tmpdir(), `ytmusic-player-control-${userId}.sock`);
+    return join(require('os').tmpdir(), `melo-control-${userId}.sock`);
   }
 
   // ─── Spawn config ───────────────────────────────────────────────────────

@@ -46,7 +46,7 @@ async function pack(directory: string, destination: string): Promise<string> {
   return join(destination, filename);
 }
 
-const temporaryPrefix = join(tmpdir(), 'ytmusic-player-install-');
+const temporaryPrefix = join(tmpdir(), 'melo-install-');
 const temporaryDirectory = await mkdtemp(temporaryPrefix);
 
 try {
@@ -67,20 +67,20 @@ try {
     env: {
       ...process.env,
       CI: '1',
-      YTMUSIC_INSTALL_DRY_RUN: '1',
+      MELO_INSTALL_DRY_RUN: '1',
     },
   });
 
-  if (!installOutput.includes('ytmusic-player:')) {
-    throw new Error('The ytmusic-player postinstall dependency setup did not run.');
+  if (!installOutput.includes('melo:')) {
+    throw new Error('The MELO postinstall dependency setup did not run.');
   }
 
-  const installedPackage = join(installPrefix, 'lib', 'node_modules', 'ytmusic-player');
+  const installedPackage = join(installPrefix, 'lib', 'node_modules', 'melo');
   await stat(join(installedPackage, 'scripts', 'install-runtime-deps.js'));
 
   const executable = process.platform === 'win32'
-    ? join(installPrefix, 'ytmusic-player.cmd')
-    : join(installPrefix, 'bin', 'ytmusic-player');
+    ? join(installPrefix, 'melo.cmd')
+    : join(installPrefix, 'bin', 'melo');
   const installedVersion = await run([executable, '--version']);
   const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
