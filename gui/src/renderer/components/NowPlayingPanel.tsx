@@ -157,6 +157,7 @@ export function NowPlayingPanel({
       </div>
 
       <div className="np-body">
+        <div className={`np-meta${loading ? ' is-resolving' : ''}`}>
         {currentTrack?.album && (
           <div className="np-album truncate" title={currentTrack.album}>{currentTrack.album}</div>
         )}
@@ -188,6 +189,7 @@ export function NowPlayingPanel({
               </button>
             </div>
           )}
+        </div>
         </div>
 
         <ProgressBar

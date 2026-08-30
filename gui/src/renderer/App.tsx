@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from './hooks/useBackend';
 import type { Theme, View } from './types';
 import { TitleBar } from './components/TitleBar';
@@ -16,6 +16,41 @@ import { MiniPlayer } from './components/MiniPlayer';
 import { SettingsPopover } from './components/SettingsPopover';
 import { artworkFor } from './lib/media';
 import { readStoredTheme, writeStoredTheme } from './lib/theme-storage';
+import { readSidebarExpanded, writeSidebarExpanded } from './lib/sidebar-storage';
+
+function AmbientBackdrop({ src }: { src: string }) {
+  const [shown, setShown] = useState(src);
+  const [on, setOn] = useState(!!src);
+  const gen = useRef(0);
+
+  useEffect(() => {
+    if (!src) {
+      gen.current += 1;
+      setOn(false);
+      return;
+    }
+    const token = ++gen.current;
+    setOn(false);
+    const img = new Image();
+    img.onload = () => {
+      if (token !== gen.current) return;
+      setShown(src);
+      requestAnimationFrame(() => {
+        if (token !== gen.current) return;
+        setOn(true);
+      });
+    };
+    img.src = src;
+  }, [src]);
+
+  if (!shown) return null;
+  return (
+    <div className="ambient" aria-hidden="true">
+      <img src={shown} alt="" className={`ambient-img${on ? ' visible' : ''}`} />
+      <div className="ambient-vignette" />
+    </div>
+  );
+}
 
 function resolveTheme(t: Theme): 'light' | 'dark' {
   if (t === 'system') {
@@ -37,11 +72,16 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => readSidebarExpanded(localStorage));
 
   useEffect(() => {
     applyTheme(theme);
     writeStoredTheme(theme, localStorage);
   }, [theme]);
+
+  useEffect(() => {
+    writeSidebarExpanded(sidebarExpanded, localStorage);
+  }, [sidebarExpanded]);
 
   useEffect(() => {
     if (theme !== 'system') return;
@@ -74,13 +114,15 @@ export function App() {
   const ambient = track ? artworkFor(track, true) : '';
 
   return (
-    <div className={`app${showMini ? ' has-mini' : ''}`}>
+    <div className={`app${showMini ? ' has-mini' : ''}${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
       <TitleBar />
       <ConnectionBanner state={state.connectionState} />
 
       <div className="shell">
         <Sidebar
           view={view}
+          expanded={sidebarExpanded}
+          onToggleExpanded={() => setSidebarExpanded(v => !v)}
           onNavigate={(v) => { setView(v); setSettingsOpen(false); }}
           onSearch={openSearch}
           onSettings={() => setSettingsOpen(s => !s)}
@@ -92,12 +134,7 @@ export function App() {
           {view === 'home' ? (
             <div className="home-layout">
               <div className="player-stage">
-                {ambient && (
-                  <div className="ambient" aria-hidden="true">
-                    <img src={ambient} alt="" className="ambient-img visible" />
-                    <div className="ambient-vignette" />
-                  </div>
-                )}
+                <AmbientBackdrop src={ambient} />
                 <div className="player-body">
                   {track ? (
                     <ArtworkStage

@@ -13,7 +13,7 @@ interface QueuePanelProps {
 }
 
 export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: QueuePanelProps) {
-  const { currentTrack, queue } = state;
+  const { currentTrack, queue, playing } = state;
   const hasQueue = queue.length > 0;
 
   return (
@@ -47,6 +47,13 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
               <div className="queue-now-label">Now playing</div>
               <div className="truncate" title={currentTrack.title}>{currentTrack.title}</div>
               <div className="muted truncate" title={currentTrack.uploader}>{currentTrack.uploader}</div>
+            </div>
+            <div className={`eq eq-sm${playing ? '' : ' is-idle'}`} aria-hidden="true">
+              <div className="eq-bar" />
+              <div className="eq-bar" />
+              <div className="eq-bar" />
+              <div className="eq-bar" />
+              <div className="eq-bar" />
             </div>
           </div>
         )}

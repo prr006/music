@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, type SyntheticEvent } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Track } from '../../shared/types';
 import { artworkFor, thumbMq } from '../lib/media';
 
@@ -10,33 +10,63 @@ interface ArtworkStageProps {
 }
 
 export function ArtworkStage({ track, playing, loading, onTogglePause }: ArtworkStageProps) {
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [src, setSrc] = useState('');
-  const prevId = useRef<string | null>(null);
+  const [front, setFront] = useState('');
+  const [back, setBack] = useState('');
+  const [frontReady, setFrontReady] = useState(false);
+  const frontRef = useRef('');
+  const wantId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!track) {
-      setSrc('');
-      setImgLoaded(false);
-      prevId.current = null;
+      wantId.current = null;
+      frontRef.current = '';
+      setFrontReady(false);
+      setFront('');
+      setBack('');
       return;
     }
-    if (track.id !== prevId.current) {
-      setImgLoaded(false);
-      setSrc(artworkFor(track, true));
-      prevId.current = track.id;
-    }
+
+    const id = track.id;
+    wantId.current = id;
+    const nextSrc = artworkFor(track, true);
+
+    const apply = (src: string) => {
+      if (wantId.current !== id) return;
+      const previous = frontRef.current;
+      setBack(previous && previous !== src ? previous : '');
+      setFront(src);
+      frontRef.current = src;
+      setFrontReady(true);
+    };
+
+    const load = (src: string, allowFallback: boolean) => {
+      const img = new Image();
+      img.onload = () => apply(src);
+      img.onerror = () => {
+        if (wantId.current !== id) return;
+        if (allowFallback) load(thumbMq(id), false);
+        else apply(src);
+      };
+      img.src = src;
+    };
+
+    if (frontRef.current) setFrontReady(false);
+    load(nextSrc, nextSrc.includes('maxresdefault'));
   }, [track?.id]);
 
-  const handleError = useCallback(() => {
-    if (track && src.includes('maxresdefault')) {
-      setSrc(thumbMq(track.id));
-    }
-  }, [src, track]);
+  useEffect(() => {
+    if (!frontReady || !back) return;
+    const timer = window.setTimeout(() => setBack(''), 280);
+    return () => window.clearTimeout(timer);
+  }, [frontReady, back, front]);
 
-  const handleLoad = useCallback((_e: SyntheticEvent<HTMLImageElement>) => {
-    setImgLoaded(true);
-  }, []);
+  const handleError = useCallback(() => {
+    if (track && front.includes('maxresdefault')) {
+      const fallback = thumbMq(track.id);
+      frontRef.current = fallback;
+      setFront(fallback);
+    }
+  }, [front, track]);
 
   if (!track) return null;
 
@@ -48,28 +78,27 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
           'artwork-tile',
           playing ? 'playing' : 'paused',
           loading ? 'loading' : '',
-          imgLoaded ? 'ready' : '',
+          frontReady ? 'ready' : '',
         ].filter(Boolean).join(' ')}
         onClick={loading ? undefined : onTogglePause}
         disabled={loading}
         aria-label={`${playing ? 'Pause' : 'Play'} ${track.title}`}
       >
-        {!imgLoaded && <div className="skel artwork-placeholder" />}
-        {src && (
+        {!front && !back && <div className="skel artwork-placeholder" />}
+        {back && (
+          <img src={back} alt="" className="artwork-img artwork-back" aria-hidden="true" />
+        )}
+        {front && (
           <img
-            key={track.id}
-            src={src}
+            src={front}
             alt={track.title}
-            className={`artwork-img${imgLoaded ? '' : ' fading'}`}
-            onLoad={handleLoad}
+            className={`artwork-img${frontReady ? '' : ' fading'}`}
             onError={handleError}
           />
         )}
-        {loading && (
-          <div className="artwork-loading-overlay visible" aria-hidden="true">
-            <div className="artwork-loading-bar" />
-          </div>
-        )}
+        <div className={`artwork-loading-overlay${loading ? ' visible' : ''}`} aria-hidden="true">
+          <div className="artwork-loading-bar" />
+        </div>
       </button>
     </div>
   );
