@@ -150,7 +150,7 @@ impl Mpv {
             let mut entries = vec![dir.to_string_lossy().to_string()];
             entries.extend(current_entries);
             let new_path: OsString = match std::env::join_paths(entries.iter().map(std::path::Path::new)) {
-                Ok(path) => path.into_os_string(),
+                Ok(path) => path,
                 // If the inherited PATH contains an entry that cannot be joined,
                 // fall back to the original value rather than dropping it.
                 Err(_) => OsString::from(current),
