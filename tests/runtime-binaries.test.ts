@@ -8,7 +8,7 @@ import {
 } from '../src/melo/runtime/binaries';
 import { probeBinaryVersion } from '../src/melo/runtime/versions';
 import { ensureRuntimeDependencies } from '../src/dependencies';
-import { assertSha256, sha256Buffer } from '../scripts/fetch-desktop-runtime';
+import { assertSha256, resolveSevenZip, sha256Buffer } from '../scripts/fetch-desktop-runtime';
 
 function opts(env: Record<string, string>, files: string[], pathMap: Record<string, string | null> = {}) {
   const fileSet = new Set(files);
@@ -121,6 +121,36 @@ describe('version probing', () => {
 
   test('returns null when the probe fails', async () => {
     expect(await probeBinaryVersion('missing', async () => ({ exitCode: 1, stdout: '', stderr: 'nope' }))).toBeNull();
+  });
+});
+
+describe('Windows 7-Zip resolution', () => {
+  test('uses a native path from Program Files, not an MSYS /c/... path', () => {
+    const native = 'C:\\Program Files\\7-Zip\\7z.exe';
+    expect(resolveSevenZip({
+      platform: 'win32',
+      env: { ProgramFiles: 'C:\\Program Files' },
+      which: () => '/c/Program Files/7-Zip/7z',
+      exists: path => path === native || path === '/c/Program Files/7-Zip/7z',
+    })).toBe(native);
+  });
+
+  test('accepts where.exe output when it is already a Windows path', () => {
+    const native = 'C:\\Program Files\\7-Zip\\7z.exe';
+    expect(resolveSevenZip({
+      platform: 'win32',
+      env: {},
+      which: command => command === '7z.exe' ? native : null,
+      exists: path => path === native,
+    })).toBe(native);
+  });
+
+  test('unix lookup is unchanged', () => {
+    expect(resolveSevenZip({
+      platform: 'linux',
+      which: command => command === '7z' ? '/usr/bin/7z' : null,
+      exists: path => path === '/usr/bin/7z',
+    })).toBe('/usr/bin/7z');
   });
 });
 

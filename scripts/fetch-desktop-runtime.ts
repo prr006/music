@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -97,13 +97,74 @@ async function extractArchive(archivePath: string, dest: string) {
   if (code !== 0) throw new Error(`7z exited with code ${code}`);
 }
 
-function resolveSevenZip(): string | null {
+export interface SevenZipResolveOptions {
+  platform?: NodeJS.Platform;
+  env?: NodeJS.Dict<string | undefined>;
+  exists?: (path: string) => boolean;
+  which?: (command: string) => string | null;
+}
+
+export function resolveSevenZip(options: SevenZipResolveOptions = {}): string | null {
+  const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
+  const exists = options.exists ?? existsSync;
+
+  if (platform === 'win32') {
+    const fromWhere = firstNativeWindowsPath(
+      options.which ? [options.which('7z.exe'), options.which('7z')] : windowsWhere(['7z.exe', '7z']),
+    );
+    if (fromWhere && exists(fromWhere)) return fromWhere;
+
+    const programFiles = env.ProgramFiles || 'C:\\Program Files';
+    const programFilesX86 = env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    const localApp = env.LOCALAPPDATA || '';
+    const candidates = [
+      win32.join(programFiles, '7-Zip', '7z.exe'),
+      win32.join(programFilesX86, '7-Zip', '7z.exe'),
+      localApp ? win32.join(localApp, 'Programs', '7-Zip', '7z.exe') : '',
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      if (exists(candidate)) return candidate;
+    }
+    return null;
+  }
+
   for (const name of ['7z', '7za', '7zr']) {
-    const proc = Bun.spawnSync(['sh', '-c', `command -v ${name}`], { stdout: 'pipe' });
-    const path = proc.stdout.toString().trim();
-    if (proc.exitCode === 0 && path) return path;
+    const found = options.which ? options.which(name) : unixWhich(name);
+    if (found && exists(found)) return found;
   }
   return null;
+}
+
+function firstNativeWindowsPath(paths: Array<string | null | undefined>): string | null {
+  for (const path of paths) {
+    const trimmed = path?.trim();
+    if (trimmed && isNativeWindowsPath(trimmed)) return trimmed;
+  }
+  return null;
+}
+
+function isNativeWindowsPath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\');
+}
+
+function windowsWhere(commands: string[]): string[] {
+  const found: string[] = [];
+  for (const command of commands) {
+    const proc = Bun.spawnSync(['where.exe', command], { stdout: 'pipe', stderr: 'pipe' });
+    if (proc.exitCode !== 0) continue;
+    for (const line of proc.stdout.toString().split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) found.push(trimmed);
+    }
+  }
+  return found;
+}
+
+function unixWhich(name: string): string | null {
+  const proc = Bun.spawnSync(['sh', '-c', `command -v ${name}`], { stdout: 'pipe' });
+  const path = proc.stdout.toString().trim();
+  return proc.exitCode === 0 && path ? path : null;
 }
 
 function findFile(dir: string, fileName: string, depth: number): string | null {
