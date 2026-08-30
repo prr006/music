@@ -31,12 +31,12 @@ if (!gotTheLock) {
   function createWindow(): void {
     log('Creating BrowserWindow');
     mainWindow = new BrowserWindow({
-      width: 1280,
-      height: 800,
-      minWidth: 860,
-      minHeight: 580,
-      title: 'YTMusic Player',
-      backgroundColor: '#0f0f0f',
+      width: 1440,
+      height: 860,
+      minWidth: 960,
+      minHeight: 620,
+      title: 'AURA',
+      backgroundColor: '#0b0b10',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,

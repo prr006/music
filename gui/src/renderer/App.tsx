@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBackend } from './hooks/useBackend';
-import { ChromeBar } from './components/ChromeBar';
+import type { Theme, View } from './types';
+import { TitleBar } from './components/TitleBar';
+import { Sidebar } from './components/Sidebar';
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { ArtworkStage } from './components/ArtworkStage';
+import { NowPlayingPanel } from './components/NowPlayingPanel';
 import { DiscoverStage } from './components/DiscoverStage';
+import { LibraryView } from './components/LibraryView';
+import { FavoritesView } from './components/FavoritesView';
+import { RadioView } from './components/RadioView';
 import { SearchOverlay } from './components/SearchOverlay';
 import { QueuePanel } from './components/QueuePanel';
-import { LibraryPanel } from './components/LibraryPanel';
-
-// ─── Theme ───────────────────────────────────────────────────────────────────
-
-type Theme = 'light' | 'dark' | 'system';
+import { MiniPlayer } from './components/MiniPlayer';
+import { SettingsPopover } from './components/SettingsPopover';
+import { artworkFor } from './lib/media';
 
 function resolveTheme(t: Theme): 'light' | 'dark' {
   if (t === 'system') {
@@ -23,26 +27,23 @@ function applyTheme(t: Theme) {
   document.documentElement.setAttribute('data-theme', resolveTheme(t));
 }
 
-// ─── Panel state ─────────────────────────────────────────────────────────────
-
-type Panel = 'queue' | 'library' | null;
-
-// ─── App ─────────────────────────────────────────────────────────────────────
-
 export function App() {
   const b = useBackend();
+  const { state } = b;
 
-  // Theme
   const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem('ym-theme') as Theme) || 'light'
+    () => (localStorage.getItem('ym-theme') as Theme) || 'dark'
   );
+  const [view, setView] = useState<View>('home');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem('ym-theme', theme);
   }, [theme]);
 
-  // System theme listener
   useEffect(() => {
     if (theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -55,22 +56,9 @@ export function App() {
     setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light');
   }, []);
 
-  // Active panel (right-side contextual)
-  const [panel, setPanel] = useState<Panel>(null);
-
-  const togglePanel = useCallback((which: NonNullable<Panel>) => {
-    setPanel(p => p === which ? null : which);
-  }, []);
-
-  const closePanel = useCallback(() => setPanel(null), []);
-
-  // Search overlay
-  const [searchOpen, setSearchOpen] = useState(false);
-
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
-  // Keyboard shortcut: Ctrl+F / Cmd+F → open search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
@@ -82,91 +70,130 @@ export function App() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Collapse panel overlay click
-  const handleOverlayClick = useCallback(() => {
-    setPanel(null);
-  }, []);
-
-  const { state } = b;
+  const track = state.currentTrack;
+  const showMini = view !== 'home' && !!track;
+  const ambient = track ? artworkFor(track, true) : '';
 
   return (
-    <div className="app">
-      {/* Connection status banner (only visible when not connected) */}
+    <div className={`app${showMini ? ' has-mini' : ''}`}>
+      <TitleBar />
       <ConnectionBanner state={state.connectionState} />
 
-      {/* Chrome Bar */}
-      <ChromeBar
-        theme={theme}
-        connectionState={state.connectionState}
-        queueOpen={panel === 'queue'}
-        libraryOpen={panel === 'library'}
-        onSearch={openSearch}
-        onToggleQueue={() => togglePanel('queue')}
-        onToggleLibrary={() => togglePanel('library')}
-        onCycleTheme={cycleTheme}
-        onRetry={b.retryBackend}
-      />
+      <div className="shell">
+        <Sidebar
+          view={view}
+          onNavigate={(v) => { setView(v); setSettingsOpen(false); }}
+          onSearch={openSearch}
+          onSettings={() => setSettingsOpen(s => !s)}
+          settingsOpen={settingsOpen}
+        />
 
-      {/* Main Stage */}
-      <div className={`stage${panel !== null ? ' panel-open' : ''}`}>
-        {/* Ambient bg + primary content */}
-        {state.currentTrack ? (
-          <ArtworkStage
+        <div className="workspace">
+          {view === 'home' ? (
+            <div className="home-layout">
+              <div className="stage">
+                {ambient && (
+                  <div className="ambient" aria-hidden="true">
+                    <img src={ambient} alt="" className="ambient-img visible" />
+                    <div className="ambient-vignette" />
+                  </div>
+                )}
+                {track ? (
+                  <ArtworkStage
+                    track={track}
+                    playing={state.playing}
+                    loading={state.loading}
+                    onTogglePause={b.togglePause}
+                  />
+                ) : (
+                  <DiscoverStage
+                    state={state}
+                    onOpenSearch={openSearch}
+                    onPlay={b.play}
+                  />
+                )}
+              </div>
+              <NowPlayingPanel
+                state={state}
+                theme={theme}
+                queueOpen={queueOpen}
+                onTogglePause={b.togglePause}
+                onNext={b.nextTrack}
+                onPrevious={b.previousTrack}
+                onSeekTo={b.seekTo}
+                onSetVolume={b.setVolume}
+                onToggleMute={b.toggleMute}
+                onToggleShuffle={b.toggleShuffle}
+                onCycleRepeat={b.cycleRepeat}
+                onToggleFavorite={b.toggleFavorite}
+                onAddToQueue={b.addToQueue}
+                onToggleQueue={() => setQueueOpen(o => !o)}
+                onCycleTheme={cycleTheme}
+              />
+            </div>
+          ) : view === 'library' ? (
+            <LibraryView
+              state={state}
+              onPlay={b.play}
+              onToggleFavorite={b.toggleFavorite}
+              onOpenSearch={openSearch}
+            />
+          ) : view === 'favorites' ? (
+            <FavoritesView
+              state={state}
+              onPlay={b.play}
+              onToggleFavorite={b.toggleFavorite}
+              onOpenSearch={openSearch}
+            />
+          ) : (
+            <RadioView
+              state={state}
+              onPlay={b.play}
+              onOpenSearch={openSearch}
+            />
+          )}
+
+          {queueOpen && (
+            <div className="drawer-scrim" onClick={() => setQueueOpen(false)} />
+          )}
+          <QueuePanel
+            open={queueOpen}
             state={state}
-            onTogglePause={b.togglePause}
-            onNext={b.nextTrack}
-            onPrevious={b.previousTrack}
-            onSeekTo={b.seekTo}
-            onSetVolume={b.setVolume}
-            onToggleMute={b.toggleMute}
-            onToggleShuffle={b.toggleShuffle}
-            onCycleRepeat={b.cycleRepeat}
-            onToggleFavorite={b.toggleFavorite}
-            onOpenQueue={() => togglePanel('queue')}
-          />
-        ) : (
-          <DiscoverStage
-            state={state}
-            onOpenSearch={openSearch}
+            onClose={() => setQueueOpen(false)}
             onPlay={b.play}
+            onClear={b.clearQueue}
+            onRemove={b.removeFromQueue}
           />
-        )}
 
-        {/* Panel overlay (click to close) */}
-        <div
-          className={`panel-overlay${panel !== null ? ' visible' : ''}`}
-          onClick={handleOverlayClick}
-          aria-hidden="true"
-        />
-
-        {/* Queue Panel */}
-        <QueuePanel
-          open={panel === 'queue'}
-          state={state}
-          onClose={closePanel}
-          onPlay={b.play}
-          onClear={b.clearQueue}
-          onRemove={b.removeFromQueue}
-        />
-
-        {/* Library Panel */}
-        <LibraryPanel
-          open={panel === 'library'}
-          state={state}
-          onClose={closePanel}
-          onPlay={b.play}
-          onOpenSearch={openSearch}
-          onToggleFavorite={b.toggleFavorite}
-        />
+          {settingsOpen && (
+            <SettingsPopover
+              theme={theme}
+              connectionState={state.connectionState}
+              onTheme={setTheme}
+              onRetry={b.retryBackend}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Search Overlay (fullscreen, rendered on top of everything) */}
+      {showMini && (
+        <MiniPlayer
+          state={state}
+          onTogglePause={b.togglePause}
+          onNext={b.nextTrack}
+          onPrevious={b.previousTrack}
+          onSeekTo={b.seekTo}
+          onOpenHome={() => setView('home')}
+        />
+      )}
+
       {searchOpen && (
         <SearchOverlay
           results={state.searchResults}
           searching={state.searching}
           currentTrack={state.currentTrack}
           loadingTrack={state.loadingTrack}
+          recent={state.history}
           onSearch={b.search}
           onPlay={b.play}
           onAddToQueue={b.addToQueue}
@@ -175,7 +202,6 @@ export function App() {
         />
       )}
 
-      {/* Error toast */}
       {state.error && (
         <div className="toast error" role="alert" aria-live="assertive">
           {state.error}
