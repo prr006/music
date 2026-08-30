@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MELO",
+  "version": "0.1.0",
+  "identifier": "com.prr006.melo",
+  "build": {
+    "beforeDevCommand": "npm run dev:renderer",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build:renderer",
+    "frontendDist": "../dist/renderer"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "MELO",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 860,
+        "minHeight": 580,
+        "center": true,
+        "resizable": true,
+        "decorations": false,
+        "transparent": false,
+        "backgroundColor": "#0f0f0f"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "prr006",
+    "category": "Music",
+    "shortDescription": "Lightweight YouTube Music player",
+    "longDescription": "MELO is a Windows-first, lightweight YouTube Music desktop player powered by Tauri/WebView2, mpv and yt-dlp.",
+    "copyright": "MIT",
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../resources/bin/": "bin/"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {}
+}
