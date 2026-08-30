@@ -1,0 +1,16 @@
+{
+  "$comment": "Pinned MELO runtime, matching the verified Electron/desktop runtime in runtime-manifest.json. prepare:runtime copies from gui/resources/runtime by default and verifies yt-dlp.exe against sha256. mpv is pinned by version/url; its directory is staged conservatively (all DLLs kept).",
+  "yt-dlp": {
+    "description": "Standalone Windows yt-dlp.exe staged into lightweight/resources/bin/yt-dlp.exe",
+    "version": "2026.08.19",
+    "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
+    "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+  },
+  "mpv": {
+    "description": "Bundled portable mpv distribution staged into lightweight/resources/bin/mpv/",
+    "version": "20260830",
+    "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260830/mpv-x86_64-20260830-git-e8673660ab.7z",
+    "sha256": "464ab69b2248e7b592f0c27a927ffd1f016f7fa2d6d8b46b1a98254c5f2b670a",
+    "doc": "Keep mpv.exe/mpv.com and every DLL in the mpv directory unless a dependency is proven unnecessary during validation."
+  }
+}

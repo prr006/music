@@ -1,0 +1,32 @@
+{
+  "name": "melo-lightweight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Windows-first lightweight MELO desktop build (Tauri 2 + WebView2 + React/TypeScript).",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev": "tauri dev",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer && tauri build",
+    "package:lightweight": "npm run prepare:runtime && npm run validate && npm run build:renderer && tauri build",
+    "prepare:runtime": "node ../scripts/prepare-lightweight-runtime.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "validate": "node ../scripts/validate-lightweight-config.js",
+    "measure": "node ../scripts/measure-package-size.js"
+  },
+  "dependencies": {
+    "lucide-react": "^1.37.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.6.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "typescript": "^5.9.3",
+    "vite": "^6.3.5"
+  }
+}

@@ -219,3 +219,28 @@ Her release oncesi bu listeyi kontrol et.
 - [ ] S ile player'dan arama ekranina doner
 - [ ] Q ile uygulamadan temiz cikis yapar
 - [ ] Ctrl+C ile uygulamadan cikis yapar
+
+## Lightweight MELO (Tauri / WebView2)
+
+- [ ] `npm --prefix gui run package:lightweight` produces a Windows NSIS installer
+- [ ] Installer installs a MELO executable without Electron or a bundled Chromium runtime
+- [ ] App launches on a clean Windows machine with WebView2 present
+- [ ] No Python installation is required
+- [ ] No system `yt-dlp` is required
+- [ ] No system `mpv` is required
+- [ ] Bundled `yt-dlp.exe` is used (remove `yt-dlp` from PATH and retest)
+- [ ] Bundled `mpv.exe` is used (remove `mpv` from PATH and retest)
+- [ ] Search works
+- [ ] Playback works through mpv
+- [ ] Next / previous / stop work
+- [ ] Queue add/remove/play-next/reorder and play-from-queue work
+- [ ] Favorites persist in the MELO config dir on Windows
+- [ ] Playlists (including reorder, add/remove, play) persist in the MELO config dir
+- [ ] Settings persist and close/minimize behavior is honoured
+- [ ] Shuffle, repeat, volume and seek work
+- [ ] Titlebar minimize hides to the tray; tray Show restores the window
+- [ ] Closing the main window hides to the tray when configured
+- [ ] Tray Quit exits and cleans up mpv / yt-dlp child processes
+- [ ] Second launch focuses the existing single instance
+- [ ] No orphaned `mpv.exe` or `yt-dlp.exe` remains after exit
+- [ ] `node scripts/measure-package-size.js` reports installed/unpacked size and installer size separately
