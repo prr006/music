@@ -32,7 +32,7 @@ bun run set-version 0.x.x
 bun run check:packaging
 ```
 
-Native packages use the `@mammadovziya` npm scope. Keeping them scoped prevents npm package-name similarity checks from rejecting the release.
+Native packages are unscoped platform packages (`melo-darwin-arm64`, and so on) that match the wrapper's optional dependencies.
 
 ### 3. Build all platform binaries
 
@@ -46,11 +46,11 @@ bun run check:npm-install
 Verify the output:
 
 ```
-npm/darwin-arm64/bin/ytmusic-cli
-npm/darwin-x64/bin/ytmusic-cli
-npm/linux-x64/bin/ytmusic-cli
-npm/linux-arm64/bin/ytmusic-cli
-npm/win32-x64/bin/ytmusic-cli.exe
+npm/darwin-arm64/bin/melo
+npm/darwin-x64/bin/melo
+npm/linux-x64/bin/melo
+npm/linux-arm64/bin/melo
+npm/win32-x64/bin/melo.exe
 ```
 
 ### 4. Commit and push
@@ -74,20 +74,20 @@ The workflow will:
 
 1. Build binaries for all platforms
 2. Publish each platform package to npm
-3. Publish the main `ytmusic-player` package to npm
+3. Publish the main `melo` package to npm
 
 ### 6. Verify the release
 
 ```sh
-npm info ytmusic-player
-npm info @mammadovziya/ytmusic-player-darwin-arm64
+npm info melo
+npm info melo-darwin-arm64
 ```
 
-Check that the main package and every scoped platform package report the version you just published. Also install the package in a clean temporary environment and run `ym --version`.
+Check that the main package and every platform package report the version you just published. Also install the package in a clean temporary environment and run `melo --version`.
 
-Confirm the main package's `postinstall` output installs missing `mpv` and `yt-dlp` tools. Repeat once with `npm install -g --ignore-scripts ytmusic-player` and verify that first launch performs the fallback setup.
+Confirm the main package's `postinstall` output installs missing `mpv` and `yt-dlp` tools. Repeat once with `npm install -g --ignore-scripts melo` and verify that first launch performs the fallback setup.
 
-Update `Formula/ytmusic-cli.rb` to the new GitHub tag and replace its SHA256 with the checksum of that release archive before updating the Homebrew tap.
+Update `Formula/melo.rb` to the new GitHub tag and replace its SHA256 with the checksum of that release archive before updating the Homebrew tap.
 
 ## Manual publishing (if needed)
 

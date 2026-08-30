@@ -37,5 +37,5 @@ Kullanicinin `+` ve `-` tuslariyla ses seviyesini artirip azaltabilmesi.
 ## Code Context
 
 - Tus handler: `src/index.ts`
-- Player IPC: `src/player.ts`
+- Player IPC: `src/melo/playback/mpv-player.ts`
 - UI gosterimi: `src/ui.ts`

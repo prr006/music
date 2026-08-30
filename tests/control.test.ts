@@ -7,11 +7,11 @@ import type { ControlCommand } from '../src/cli';
 
 async function withSocketPath(run: (path: string) => Promise<void>) {
   if (process.platform === 'win32') {
-    await run(`\\\\.\\pipe\\ytmusic-player-control-test-${process.pid}-${Date.now()}`);
+    await run(`\\\\.\\pipe\\melo-control-test-${process.pid}-${Date.now()}`);
     return;
   }
 
-  const directory = await mkdtemp(join(tmpdir(), 'ytmusic-player-control-test-'));
+  const directory = await mkdtemp(join(tmpdir(), 'melo-control-test-'));
   try {
     await run(join(directory, 'control.sock'));
   } finally {

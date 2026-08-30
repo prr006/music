@@ -66,4 +66,24 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('window:maximized', handler);
     return () => ipcRenderer.removeListener('window:maximized', handler);
   },
+
+  toggleMiniPlayer: (): Promise<boolean> => {
+    return ipcRenderer.invoke('window:toggle-mini');
+  },
+
+  setMiniAlwaysOnTop: (value: boolean): Promise<void> => {
+    return ipcRenderer.invoke('window:mini-always-on-top', value);
+  },
+
+  setCloseBehavior: (value: 'quit' | 'tray'): Promise<void> => {
+    return ipcRenderer.invoke('window:set-close-behavior', value);
+  },
+
+  setMinimizeToTray: (value: boolean): Promise<void> => {
+    return ipcRenderer.invoke('window:set-minimize-to-tray', value);
+  },
+
+  showMainWindow: (): void => {
+    ipcRenderer.send('window:show-main');
+  },
 });

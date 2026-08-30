@@ -1,25 +1,25 @@
-# ytmusic-player - YouTube Music Terminal Player
+# MELO — YouTube Music Terminal Player
 
 <div align="center">
-  <img src="assets/ytmusic-player-ui.png" width="680" alt="ytmusic-player YouTube Music terminal player interface">
+  <img src="assets/ytmusic-player-ui.png" width="680" alt="MELO YouTube Music terminal player interface">
 </div>
 
-`ytmusic-player` is a fast YouTube Music CLI, terminal music player, and command-line YouTube player for Windows, macOS, and Linux. Search YouTube Music, stream audio through `mpv`, download songs with `yt-dlp`, and control playback from a keyboard-driven TUI.
+`melo` is a fast YouTube Music CLI, terminal music player, and command-line YouTube player for Windows, macOS, and Linux. Search YouTube Music, stream audio through `mpv`, download songs with `yt-dlp`, and control playback from a keyboard-driven TUI.
 
-[![npm version](https://img.shields.io/npm/v/ytmusic-player?color=orange)](https://www.npmjs.com/package/ytmusic-player)
-[![CI](https://github.com/mammadovziya/ytmusic-player/actions/workflows/ci.yml/badge.svg)](https://github.com/mammadovziya/ytmusic-player/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/melo?color=orange)](https://www.npmjs.com/package/melo)
+[![CI](https://github.com/prr006/music/actions/workflows/ci.yml/badge.svg)](https://github.com/prr006/music/actions/workflows/ci.yml)
 [![Supported platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-blue)](#installation)
-[![Latest release](https://img.shields.io/github/v/release/mammadovziya/ytmusic-player?label=release)](https://github.com/mammadovziya/ytmusic-player/releases)
+[![Latest release](https://img.shields.io/github/v/release/prr006/music?label=release)](https://github.com/prr006/music/releases)
 [![Built with Bun](https://img.shields.io/badge/Built%20with-Bun-fbf0df?logo=bun&logoColor=black)](https://bun.sh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## Project Links
 
-- [Releases](https://github.com/mammadovziya/ytmusic-player/releases)
-- [Tags](https://github.com/mammadovziya/ytmusic-player/tags)
+- [Releases](https://github.com/prr006/music/releases)
+- [Tags](https://github.com/prr006/music/tags)
 - [Changelog](CHANGELOG.md)
-- [Issues](https://github.com/mammadovziya/ytmusic-player/issues)
-- [npm package](https://www.npmjs.com/package/ytmusic-player)
+- [Issues](https://github.com/prr006/music/issues)
+- [npm package](https://www.npmjs.com/package/melo)
 
 ## Why Use It
 
@@ -36,23 +36,23 @@ The player uses these command-line tools, which the npm installer sets up automa
 - `mpv` - media playback backend.
 - `yt-dlp` - YouTube metadata, stream, mix, and download helper.
 
-During `npm install`, `ytmusic-player` checks for both tools and automatically installs missing dependencies when a supported package manager is available:
+During `npm install`, `melo` checks for both tools and automatically installs missing dependencies when a supported package manager is available:
 
 - Windows: `winget`
 - macOS: `brew`
 - Linux: `apt-get`, `dnf`, `yum`, `pacman`, `zypper`, or `apk`
 
-If npm lifecycle scripts are disabled with `--ignore-scripts`, the same setup runs on first launch. Set `YTMUSIC_SKIP_AUTO_INSTALL=1` to disable both automatic attempts and show manual install hints instead.
+If npm lifecycle scripts are disabled with `--ignore-scripts`, the same setup runs on first launch. Set `MELO_SKIP_AUTO_INSTALL=1` to disable both automatic attempts and show manual install hints instead.
 
 ## Platform Support
 
 | Platform | Architecture | Install path |
 | :--- | :--- | :--- |
-| Windows | x64 | npm package `@mammadovziya/ytmusic-player-win32-x64` |
-| macOS | Apple Silicon | npm package `@mammadovziya/ytmusic-player-darwin-arm64` |
-| macOS | Intel | npm package `@mammadovziya/ytmusic-player-darwin-x64` |
-| Linux | x64 | npm package `@mammadovziya/ytmusic-player-linux-x64` |
-| Linux | ARM64 | npm package `@mammadovziya/ytmusic-player-linux-arm64` |
+| Windows | x64 | npm package `melo-win32-x64` |
+| macOS | Apple Silicon | npm package `melo-darwin-arm64` |
+| macOS | Intel | npm package `melo-darwin-x64` |
+| Linux | x64 | npm package `melo-linux-x64` |
+| Linux | ARM64 | npm package `melo-linux-arm64` |
 
 ## Installation
 
@@ -61,8 +61,8 @@ If npm lifecycle scripts are disabled with `--ignore-scripts`, the same setup ru
 Install the CLI from npm. The installer also installs missing `mpv` and `yt-dlp` dependencies through winget:
 
 ```powershell
-npm install -g ytmusic-player
-ym
+npm install -g melo
+melo
 ```
 
 The npm package includes a native Windows x64 binary and uses a Windows named pipe for `mpv` IPC.
@@ -72,16 +72,16 @@ The npm package includes a native Windows x64 binary and uses a Windows named pi
 Install the CLI from npm. The installer also installs missing `mpv` and `yt-dlp` dependencies through Homebrew:
 
 ```sh
-npm install -g ytmusic-player
-ym
+npm install -g melo
+melo
 ```
 
 Alternatively, install the player and runtime dependencies together with Homebrew:
 
 ```sh
-brew tap mammadovziya/tap
-brew install ytmusic-cli
-ym
+brew tap prr006/tap
+brew install melo
+melo
 ```
 
 ### Linux
@@ -89,8 +89,8 @@ ym
 Install the CLI. The installer also installs missing `mpv` and `yt-dlp` dependencies through the available system package manager:
 
 ```sh
-npm install -g ytmusic-player
-ym
+npm install -g melo
+melo
 ```
 
 ### From Source
@@ -102,19 +102,18 @@ bun run src/index.ts
 
 ## Commands
 
-After installation, these commands launch the same player:
+After installation, this command launches the player:
 
 ```sh
-ytmusic-player
-ym
+melo
 ```
 
 Search for a song and immediately play the best result:
 
 ```sh
-ym -s alors on danse
-ym play alors on danse
-ym --search "Alors on danse"
+melo -s alors on danse
+melo play alors on danse
+melo --search "Alors on danse"
 ```
 
 If a player is already running, these commands control it through a private per-user socket. If no player is running, `play`, `-s`, and `--search` start one automatically.
@@ -125,32 +124,32 @@ Run these commands from another terminal while the player is open:
 
 | Command | Alias | Action |
 | :--- | :--- | :--- |
-| `ym mute` | `ym m` | Toggle mute |
-| `ym next` | `ym n` | Play the next queued song |
-| `ym prev` | `ym p` | Play the previous song |
-| `ym pause` | | Pause playback |
-| `ym resume` | | Resume playback |
-| `ym toggle` | `ym t` | Toggle pause/resume |
-| `ym volume 50` | | Set volume |
-| `ym volume +10` | | Raise volume relatively |
-| `ym volume -10` | | Lower volume relatively |
-| `ym seek +10` | | Seek forward in seconds |
-| `ym seek -10` | | Seek backward in seconds |
-| `ym now` | `ym i` | Show the current song |
-| `ym status` | | Show playback, volume, modes, and queue size |
-| `ym shuffle on` | `ym x` | Set shuffle; the alias toggles it |
-| `ym repeat off` | | Disable repeat |
-| `ym repeat one` | | Repeat one song |
-| `ym repeat all` | | Repeat all |
-| `ym favorite` | `ym f` | Toggle the current song as a favorite |
-| `ym download` | `ym d` | Download the current song |
-| `ym queue` | | List queued songs |
-| `ym queue clear` | | Clear the queue |
-| `ym stop` | | Stop playback but keep the player open |
-| `ym quit` | `ym q` | Close the running player |
-| `ym help` | `ym h` | Show command help |
+| `melo mute` | `melo m` | Toggle mute |
+| `melo next` | `melo n` | Play the next queued song |
+| `melo prev` | `melo p` | Play the previous song |
+| `melo pause` | | Pause playback |
+| `melo resume` | | Resume playback |
+| `melo toggle` | `melo t` | Toggle pause/resume |
+| `melo volume 50` | | Set volume |
+| `melo volume +10` | | Raise volume relatively |
+| `melo volume -10` | | Lower volume relatively |
+| `melo seek +10` | | Seek forward in seconds |
+| `melo seek -10` | | Seek backward in seconds |
+| `melo now` | `melo i` | Show the current song |
+| `melo status` | | Show playback, volume, modes, and queue size |
+| `melo shuffle on` | `melo x` | Set shuffle; the alias toggles it |
+| `melo repeat off` | | Disable repeat |
+| `melo repeat one` | | Repeat one song |
+| `melo repeat all` | | Repeat all |
+| `melo favorite` | `melo f` | Toggle the current song as a favorite |
+| `melo download` | `melo d` | Download the current song |
+| `melo queue` | | List queued songs |
+| `melo queue clear` | | Clear the queue |
+| `melo stop` | | Stop playback but keep the player open |
+| `melo quit` | `melo q` | Close the running player |
+| `melo help` | `melo h` | Show command help |
 
-Commands other than `play`, `-s`, and `--search` report an error when no player is running. Run `ym --help` to see the complete command-line reference.
+Commands other than `play`, `-s`, and `--search` report an error when no player is running. Run `melo --help` to see the complete command-line reference.
 
 ## Controls
 
@@ -183,18 +182,22 @@ Commands other than `play`, `-s`, and `--search` report an error when no player 
 - No analytics, telemetry, accounts, or browser cookies.
 - `yt-dlp` runs with config, filesystem cache, and cookie loading disabled.
 - `mpv` runs with user config, disk cache, resume files, cookies, and watch history disabled.
-- Set `YTMUSIC_PROXY` to route yt-dlp traffic through a proxy:
+- Set `MELO_PROXY` to route yt-dlp traffic through a proxy:
 
 ```sh
-YTMUSIC_PROXY=socks5://127.0.0.1:9050 ym
+MELO_PROXY=socks5://127.0.0.1:9050 melo
 ```
 
 Network anonymity still depends on your network, proxy, or VPN. The app avoids local tracking and cookies, but it cannot hide your IP address by itself.
 
+## Data directory
+
+Library files live in `~/.config/melo` (or `%APPDATA%\melo` on Windows). Downloads live in `~/Music/melo`. On first launch, MELO copies missing favorites, history, playlists, settings, and downloads from the previous `ytmusic-cli` folders if those files are not already present. Existing MELO files are never overwritten, and the old folders are left in place.
+
 ## Screenshots
 
 <div align="center">
-  <img src="assets/desktop-view.png" width="640" alt="ytmusic-player running in a desktop terminal">
+  <img src="assets/desktop-view.png" width="640" alt="MELO running in a desktop terminal">
   <p><i>Keyboard-first YouTube Music playback in the terminal.</i></p>
 </div>
 

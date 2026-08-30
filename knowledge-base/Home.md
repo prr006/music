@@ -5,13 +5,13 @@ tags:
   - project
   - index
 aliases:
-  - yt-music-cli KB
+  - MELO KB
   - Ana Sayfa
 ---
 
-# yt-music-cli Knowledge Base
+# MELO Knowledge Base
 
-Bu vault, `yt-music-cli` projesinin urun, mimari, akis ve operasyon bilgisini tek yerde toplar.
+Bu vault, MELO projesinin urun, mimari, akis ve operasyon bilgisini tek yerde toplar.
 
 ## Baslangic
 
@@ -35,13 +35,13 @@ Bu vault, `yt-music-cli` projesinin urun, mimari, akis ve operasyon bilgisini te
 
 ## Hizli Baglam
 
-- Urun: Terminal icinde YouTube Music oynatici
+- Urun: MELO — terminal ve masaustu YouTube muzik oynatici
 - Runtime: Bun + `mpv` + `yt-dlp`
-- Giris noktasi: `src/index.ts`
-- UI: ANSI terminal render katmani (`src/ui.ts`)
-- Oynatici kontrolu: mpv IPC (`src/player.ts`)
-- Arama ve mix: `yt-dlp` wrapper (`src/search.ts`)
-- Kalici veri: `~/.config/yt-music-cli`
+- Giris noktasi: `src/index.ts` (TUI) / `src/backend-headless.ts` (GUI)
+- UI: ANSI terminal render katmani (`src/ui.ts`) ve Electron renderer
+- Oynatici kontrolu: mpv IPC (`src/melo/playback/mpv-player.ts`)
+- Arama ve mix: `yt-dlp` YouTube wrapper (`src/melo/search`, `src/melo/radio`)
+- Kalici veri: `~/.config/melo` (ilk acilista eski `ytmusic-cli` klasorunden kopyalanir)
 
 ## Kaynaklar
 

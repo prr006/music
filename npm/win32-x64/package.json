@@ -1,7 +1,7 @@
 {
-  "name": "@mammadovziya/ytmusic-player-win32-x64",
+  "name": "melo-win32-x64",
   "version": "0.3.7",
-  "description": "Windows x64 native binary for ytmusic-player",
+  "description": "Windows x64 native binary for MELO",
   "os": [
     "win32"
   ],

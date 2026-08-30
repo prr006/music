@@ -30,7 +30,7 @@ async function inspectPackage(directory: string, expectedFiles: string[]) {
 }
 
 await Promise.all([
-  inspectPackage(root, ['bin/ytmusic-cli', 'scripts/install-runtime-deps.js', 'README.md', 'LICENSE']),
+  inspectPackage(root, ['bin/melo', 'scripts/install-runtime-deps.js', 'README.md', 'LICENSE']),
   ...PLATFORM_PACKAGES.map(platform =>
     inspectPackage(join(root, 'npm', platform.dir), ['index.js', `bin/${platform.binary}`])
   ),

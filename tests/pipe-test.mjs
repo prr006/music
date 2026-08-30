@@ -1,7 +1,7 @@
 import { createConnection } from 'net';
 
 const userId = (process.env.USERNAME || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
-const pipePath = `\\\\.\\pipe\\ytmusic-player-control-${userId}`;
+const pipePath = `\\\\.\\pipe\\melo-control-${userId}`;
 
 console.log('USERNAME:', process.env.USERNAME);
 console.log('userId:', userId);

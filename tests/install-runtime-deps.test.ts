@@ -61,7 +61,7 @@ describe('npm runtime dependency installer', () => {
       .toBe('running in CI');
     expect(getLifecycleSkipReason({
       cwd: import.meta.dir + '/..',
-      env: { YTMUSIC_INSTALL_DRY_RUN: '1' },
+      env: { MELO_INSTALL_DRY_RUN: '1' },
     })).toBeNull();
   });
 
@@ -71,7 +71,7 @@ describe('npm runtime dependency installer', () => {
     const result = installRuntimeDependencies({
       platform: 'darwin',
       cwd: import.meta.dir + '/..',
-      env: { YTMUSIC_INSTALL_DRY_RUN: '1' },
+      env: { MELO_INSTALL_DRY_RUN: '1' },
       resolveCommand: (command: string) => command === 'brew' ? '/opt/homebrew/bin/brew' : null,
       spawn: () => {
         spawnCalled = true;

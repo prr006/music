@@ -1,12 +1,12 @@
-# Publishing Guide - ytmusic-player
+# Publishing Guide - MELO
 
-Follow these steps to publish `ytmusic-player` under the account `mammadovziya`.
+Follow these steps to publish `melo`.
 
 ## 1. NPM Publication
 
 The project uses a wrapper package with platform-specific optional dependencies. You must publish the platform packages first, then the main package.
 
-Platform packages are public packages in the `@mammadovziya` scope. Before publishing, synchronize and verify every manifest:
+Platform packages are public unscoped packages (`melo-darwin-arm64`, and so on). Before publishing, synchronize and verify every manifest:
 
 ```sh
 bun run set-version 0.x.x
@@ -56,31 +56,31 @@ To publish on Homebrew, you need to create a "tap" repository on your GitHub.
 2. Clone it locally.
 
 ### Step B: Prepare a Release
-1. Push your code to your main `ytmusic-player` GitHub repo.
+1. Push your code to the main `music` GitHub repo.
 2. Create a new GitHub Release (e.g., `v0.x.x`).
 3. Download the "Source code (tar.gz)" from that release.
 
 ### Step C: Update the Formula
 1. Get the SHA256 of the downloaded tarball:
    ```sh
-   openssl dgst -sha256 ytmusic-player-0.x.x.tar.gz
+   openssl dgst -sha256 music-0.x.x.tar.gz
    ```
-2. Copy the content from `Formula/ytmusic-cli.rb` into your `homebrew-tap` repository as `Formula/ytmusic-cli.rb`.
+2. Copy the content from `Formula/melo.rb` into your `homebrew-tap` repository as `Formula/melo.rb`.
 3. Update the `sha256` field in the file with the value from step 1.
 4. Commit and push to your `homebrew-tap` repo.
 
 ### Step D: Installation
 Your users can now install via:
 ```sh
-brew install mammadovziya/tap/ytmusic-cli
+brew install prr006/tap/melo
 ```
-Note: If you name your repo `homebrew-tap`, the command becomes `mammadovziya/tap/ytmusic-cli`.
+Note: If you name your repo `homebrew-tap`, the command becomes `prr006/tap/melo`.
 
 ---
 
-## 3. How to get `brew install ytmusic-cli` (without tap name)
+## 3. How to get `brew install melo` (without tap name)
 
-To make it installable via just `brew install ytmusic-cli`, your project needs to be accepted into **Homebrew Core**.
+To make it installable via just `brew install melo`, your project needs to be accepted into **Homebrew Core**.
 
 **Requirements for Homebrew Core:**
 - **Popularity**: Usually requires ~75+ stars on GitHub.
@@ -88,7 +88,7 @@ To make it installable via just `brew install ytmusic-cli`, your project needs t
 - **Source-based**: Homebrew Core prefers building from source rather than shipping pre-compiled binaries (unless it's a Cask).
 
 **Recommendation:**
-Start with your own tap (`mammadovziya/tap`). Once you have some users and stars, you can submit a Pull Request to [homebrew-core](https://github.com/Homebrew/homebrew-core).
+Start with your own tap (`prr006/tap`). Once you have some users and stars, you can submit a Pull Request to [homebrew-core](https://github.com/Homebrew/homebrew-core).
 
 Whenever you update the version:
 1. Run `bun run set-version 0.x.x` to update the root package, optional dependencies, and all platform packages.

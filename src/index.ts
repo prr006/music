@@ -1,10 +1,7 @@
-import { PlaybackEngine } from './engine';
+import { MeloApp } from './melo/app';
 import { renderSearch, renderResults, renderPlayer, renderFavorites, clearScreen, renderPlaylistList, renderPlaylistDetail, renderPlaylistPicker, renderNewPlaylistInput, renderRenamePlaylistInput, renderLanguagePicker, renderDownloads } from './ui';
-import type { Track } from './types';
-import type { Playlist } from './types';
-import { join } from 'path';
-import { setLang, getLang, t, LANGS } from './i18n';
-import { resolveCommand } from './platform';
+import type { Track, Playlist } from './types';
+import { setLang, getLang, t, LANGS, type Lang } from './i18n';
 import { ensureRuntimeDependencies } from './dependencies';
 import { CLI_HELP, parseCliArgs, type CliCommand, type ControlCommand } from './cli';
 import { ControlServer, ControlUnavailableError, sendControlCommand, type ControlResponse, type ControlDataResponse } from './control';
@@ -23,7 +20,7 @@ try {
   cliCommand = parseCliArgs(process.argv.slice(2));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`ytmusic-player: ${message}\n\n${CLI_HELP}\n`);
+  process.stderr.write(`melo: ${message}\n\n${CLI_HELP}\n`);
   process.exit(1);
 }
 
@@ -68,7 +65,7 @@ let terminalStarted = false;
 
 // ─── Engine ───────────────────────────────────────────────────────────────
 
-const engine = new PlaybackEngine();
+const engine = new MeloApp();
 
 // ─── Engine event listeners ───────────────────────────────────────────────
 
@@ -340,7 +337,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       renderPlayerNow();
       return { ok: true, message: `Repeat: ${command.mode}` };
     case 'favorite': {
-      const track = currentTrackOrThrow();
+      const track = command.track ?? currentTrackOrThrow();
       const added = engine.toggleFavorite(track);
       renderPlayerNow();
       return { ok: true, message: added ? 'Added to favorites.' : 'Removed from favorites.' };
@@ -375,7 +372,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       setTimeout(() => {
         void cleanup().finally(() => process.exit(0));
       }, 50);
-      return { ok: true, message: 'Closing ytmusic-player.' };
+      return { ok: true, message: 'Closing MELO.' };
     // ─── Extended protocol commands ─────────────────────────────────────
     case 'add-to-queue': {
       engine.addToQueue(command.track);
@@ -393,7 +390,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       return {
         ok: true,
         message: engine.queue.map((qi, i) => `${i + 1}. [${qi.source}] ${qi.track.title}${qi.track.uploader ? ` — ${qi.track.uploader}` : ''}`).join('\n'),
-        data: engine.queue,
+        data: engine.queue.snapshot(),
       } satisfies ControlDataResponse;
     }
     case 'get-state': {
@@ -402,7 +399,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
         message: statusText(),
         data: {
           currentTrack: engine.currentTrack,
-          queue: engine.queue,
+          queue: engine.queue.snapshot(),
           history: engine.history,
           volume: engine.volume,
           muted: engine.state.muted,
@@ -1056,13 +1053,13 @@ function printControlResponse(response: ControlResponse) {
 
 async function runInteractive(initialQuery: string | null) {
   if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
-    throw new Error('Starting ytmusic-player requires an interactive terminal.');
+    throw new Error('Starting MELO requires an interactive terminal.');
   }
 
   await ensureRuntimeDependencies();
 
   const settings = engine.loadSettings();
-  setLang(settings.lang);
+  setLang((settings.lang as Lang) || 'en');
 
   await engine.start();
   playerStarted = true;
@@ -1082,6 +1079,7 @@ async function runInteractive(initialQuery: string | null) {
     engine.on('volume-changed', forwardEvent);
     engine.on('shuffle-changed', forwardEvent);
     engine.on('repeat-changed', forwardEvent);
+    engine.on('favorites-changed', forwardEvent);
 
   process.stdin.setRawMode(true);
   terminalStarted = true;
@@ -1148,7 +1146,7 @@ async function main() {
         return;
       }
 
-      process.stderr.write('ytmusic-player: no player is running. Start one with `ym` or `ym play <song name>`.\n');
+      process.stderr.write('melo: no player is running. Start one with `melo` or `melo play <song name>`.\n');
       process.exitCode = 1;
       return;
     }
@@ -1156,7 +1154,7 @@ async function main() {
 
   try {
     await sendControlCommand({ type: 'status' }, { timeout: 1000 });
-    process.stderr.write('ytmusic-player: another player is already running. Use `ym status` or another control command.\n');
+    process.stderr.write('melo: another player is already running. Use `melo status` or another control command.\n');
     process.exitCode = 1;
     return;
   } catch (error) {
@@ -1169,6 +1167,6 @@ async function main() {
 main().catch(async (e) => {
   if (playerStarted || terminalStarted || controlServer) await cleanup();
   const message = e instanceof Error ? e.message : String(e);
-  process.stderr.write(`ytmusic-player: ${message}\n`);
+  process.stderr.write(`melo: ${message}\n`);
   process.exitCode = 1;
 });

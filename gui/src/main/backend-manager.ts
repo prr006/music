@@ -9,6 +9,7 @@
  *   5. Prevent concurrent start/restart attempts with a state machine.
  */
 
+import { app } from 'electron';
 import { spawn, type ChildProcess } from 'child_process';
 import { createConnection, type Socket } from 'net';
 import { EventEmitter } from 'events';
@@ -177,7 +178,7 @@ export class BackendManager extends EventEmitter {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false,
       shell: useShell,
-      env: { ...process.env },
+      env: this.backendEnv(),
     });
 
     this.process = child;
@@ -282,18 +283,41 @@ export class BackendManager extends EventEmitter {
   // ─── Pipe path computation ──────────────────────────────────────────────
 
   private computePipePath(): string {
-    const override = process.env.YTMUSIC_CONTROL_SOCKET?.trim();
+    const override = process.env.MELO_CONTROL_SOCKET?.trim();
     if (override) return override;
 
     const userId = process.env.USERNAME?.replace(/[^a-zA-Z0-9_-]/g, '_') || 'user';
 
     if (process.platform === 'win32') {
-      return `\\\\.\\pipe\\ytmusic-player-control-${userId}`;
+      return `\\\\.\\pipe\\melo-control-${userId}`;
     }
-    return join(require('os').tmpdir(), `ytmusic-player-control-${userId}.sock`);
+    return join(require('os').tmpdir(), `melo-control-${userId}.sock`);
   }
 
   // ─── Spawn config ───────────────────────────────────────────────────────
+
+  private backendEnv(): NodeJS.ProcessEnv {
+    const packaged = app.isPackaged;
+    const bundled = process.env.MELO_BUNDLED_RUNTIME?.trim()
+      || (packaged && process.resourcesPath
+        ? join(process.resourcesPath, 'runtime')
+        : this.devRuntimeDir());
+    const userRuntime = process.env.MELO_USER_RUNTIME?.trim()
+      || join(app.getPath('userData'), 'runtime');
+
+    return {
+      ...process.env,
+      MELO_PACKAGED: packaged ? '1' : (process.env.MELO_PACKAGED || ''),
+      MELO_BUNDLED_RUNTIME: bundled,
+      MELO_USER_RUNTIME: userRuntime,
+    };
+  }
+
+  private devRuntimeDir(): string {
+    const root = this.findProjectRoot();
+    if (root) return join(root, 'gui', 'resources', 'runtime');
+    return join(process.resourcesPath || '', 'runtime');
+  }
 
   private getSpawnConfig(): { command: string; args: string[]; cwd: string } {
     const packagedPath = process.resourcesPath

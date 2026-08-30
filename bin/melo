@@ -19,12 +19,12 @@ const key = `${process.platform} ${process.arch}`;
 const platformDir = PLATFORMS[key];
 
 if (!platformDir) {
-  process.stderr.write(`ytmusic-player: Unsupported platform: ${process.platform} ${process.arch}\n`);
+  process.stderr.write(`melo: Unsupported platform: ${process.platform} ${process.arch}\n`);
   process.exit(1);
 }
 
-const exeName = process.platform === 'win32' ? 'ytmusic-cli.exe' : 'ytmusic-cli';
-const packageName = `@mammadovziya/ytmusic-player-${platformDir}`;
+const exeName = process.platform === 'win32' ? 'melo.exe' : 'melo';
+const packageName = `melo-${platformDir}`;
 let binPath;
 
 try {
@@ -35,7 +35,7 @@ try {
 
 const result = spawnSync(binPath, process.argv.slice(2), { stdio: 'inherit' });
 if (result.error) {
-  process.stderr.write(`ytmusic-player: Failed to launch ${packageName}. Try reinstalling with optional dependencies enabled.\n`);
+  process.stderr.write(`melo: Failed to launch ${packageName}. Try reinstalling with optional dependencies enabled.\n`);
   process.stderr.write(`${result.error.message}\n`);
   process.exit(1);
 }

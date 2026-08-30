@@ -3,18 +3,18 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "ytmusic-player",
+      "name": "melo",
       "devDependencies": {
         "@types/bun": "latest",
         "chalk": "^5.6.2",
         "typescript": "^5",
       },
       "optionalDependencies": {
-        "@mammadovziya/ytmusic-player-darwin-arm64": "0.3.7",
-        "@mammadovziya/ytmusic-player-darwin-x64": "0.3.7",
-        "@mammadovziya/ytmusic-player-linux-arm64": "0.3.7",
-        "@mammadovziya/ytmusic-player-linux-x64": "0.3.7",
-        "@mammadovziya/ytmusic-player-win32-x64": "0.3.7",
+        "melo-darwin-arm64": "0.3.7",
+        "melo-darwin-x64": "0.3.7",
+        "melo-linux-arm64": "0.3.7",
+        "melo-linux-x64": "0.3.7",
+        "melo-win32-x64": "0.3.7",
       },
     },
   },

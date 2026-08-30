@@ -1,160 +1,215 @@
-import { X, List } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { X, List, Mic2, GripVertical } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
-import type { Track, QueueItem } from '../../shared/types';
+import type { Track, QueueItem, LyricsLine } from '../../shared/types';
+import { artworkFor, fmt } from '../lib/media';
+
+type RightTab = 'queue' | 'lyrics';
 
 interface QueuePanelProps {
   open: boolean;
+  tab: RightTab;
+  onTab: (tab: RightTab) => void;
   state: PlayerState;
   onClose: () => void;
-  onPlay: (t: Track) => void;
+  onPlayIndex: (index: number) => void;
   onClear: () => void;
   onRemove: (index: number) => void;
+  onMove: (from: number, to: number) => void;
+  onSavePlaylist: (name: string) => void;
+  onPlayNext: (track: Track) => void;
 }
 
-function thumb(id: string) { return `https://img.youtube.com/vi/${id}/mqdefault.jpg`; }
-function fmt(s?: number): string {
-  if (!s || !Number.isFinite(s)) return '';
-  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+function activeLyricIndex(lines: LyricsLine[], positionSec: number): number {
+  const pos = positionSec * 1000;
+  let current = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const start = lines[i]?.startMs;
+    if (start === undefined) continue;
+    if (start <= pos) current = i;
+    else break;
+  }
+  return current;
 }
 
-export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: QueuePanelProps) {
-  const { currentTrack, queue } = state;
+export function QueuePanel({
+  open, tab, onTab, state, onClose, onPlayIndex, onClear, onRemove, onMove, onSavePlaylist, onPlayNext,
+}: QueuePanelProps) {
+  const { currentTrack, queue, playing, lyrics, lyricsLoading, position } = state;
   const hasQueue = queue.length > 0;
-  const manualCount = queue.filter(item => item.source === 'manual').length;
+  const [playlistName, setPlaylistName] = useState('');
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const dragged = useRef(false);
+  const lines = lyrics && currentTrack && lyrics.trackId === currentTrack.id ? lyrics.lines : [];
+  const activeLine = activeLyricIndex(lines, position);
 
   return (
     <div
-      className={`panel${open ? ' open' : ''}`}
+      className={`drawer queue-panel${open ? ' open' : ''}`}
       role="complementary"
-      aria-label="Queue"
+      aria-label={tab === 'lyrics' ? 'Lyrics' : 'Queue'}
       aria-hidden={!open}
+      {...(!open ? { inert: true } : {})}
     >
-      {/* Stitch dual-label header: "Your Stage" + "LISTENING NOW" */}
-      <div className="panel-header">
-        <div className="panel-title-group">
-          <span className="panel-title">Your Stage</span>
-          <span className="panel-subtitle">
-            {hasQueue ? `${queue.length} queued${manualCount ? ` · ${manualCount} picked` : ''}` : 'Listening Now'}
-          </span>
+      <div className="queue-panel-inner">
+      <div className="drawer-header">
+        <div>
+          <div className="chip-row wrap" role="tablist" aria-label="Queue and lyrics">
+            <button role="tab" aria-selected={tab === 'queue'} className={`chip${tab === 'queue' ? ' selected' : ''}`} onClick={() => onTab('queue')}>Queue</button>
+            <button role="tab" aria-selected={tab === 'lyrics'} className={`chip${tab === 'lyrics' ? ' selected' : ''}`} onClick={() => onTab('lyrics')}>Lyrics</button>
+          </div>
+          <div className="page-sub">
+            {tab === 'lyrics'
+              ? (currentTrack ? currentTrack.title : 'No track')
+              : (hasQueue ? `${queue.length} up next · this session` : 'This session')}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-          <button className="panel-close" onClick={onClose} aria-label="Close queue">
-            <X size={14} />
-          </button>
-        </div>
+        <button className="ghost-btn" onClick={onClose} aria-label="Close panel">
+          <X size={16} />
+        </button>
       </div>
 
-      {/* Body */}
-      <div className="panel-body">
-        {/* Now playing — Stitch: tonal highlight card, not accent tint */}
-        {currentTrack && (
-          <div role="region" aria-label="Now playing">
-            <div className="queue-now-section-label">Now Playing</div>
-            <div className="queue-now-playing">
-              <img
-                src={thumb(currentTrack.id)}
-                alt=""
-                className="queue-now-art"
-              />
-              <div className="queue-now-info">
-                <div className="queue-now-title truncate">{currentTrack.title || 'Unknown'}</div>
-                <div className="queue-now-artist truncate">{currentTrack.uploader || 'Unknown'}</div>
-              </div>
+      <div className="drawer-body">
+        {tab === 'lyrics' ? (
+          !currentTrack ? (
+            <div className="empty-block">
+              <Mic2 size={28} strokeWidth={1.2} />
+              <p>Play a song to load lyrics.</p>
             </div>
-          </div>
-        )}
-
-        {/* Next up */}
-        {hasQueue && (
-          <div role="list" aria-label="Up next">
-            <div className="queue-section-label">Up Next</div>
-            {queue.map((qi: QueueItem, i: number) => {
-              const isCurrentlyPlaying = currentTrack?.id === qi.track.id;
-              return (
-                <div
-                  key={`${qi.track.id}-${i}`}
-                  className={`queue-item${isCurrentlyPlaying ? ' active' : ''}`}
+          ) : lyricsLoading ? (
+            <p className="muted">Looking up captions…</p>
+          ) : lines.length === 0 ? (
+            <div className="empty-block sm">
+              <p>No lyrics for this track.</p>
+            </div>
+          ) : (
+            <div className="lyrics-list" role="list" aria-label="Lyrics">
+              {lines.map((line, i) => (
+                <p
+                  key={`${line.startMs ?? i}-${i}`}
                   role="listitem"
-                  onClick={() => onPlay(qi.track)}
-                  tabIndex={0}
-                  onKeyDown={e => e.key === 'Enter' && onPlay(qi.track)}
-                  aria-label={`${qi.track.title} by ${qi.track.uploader}`}
+                  className={`lyrics-line${i === activeLine ? ' current' : ''}`}
                 >
-                  <img
-                    src={thumb(qi.track.id)}
-                    alt=""
-                    className="queue-item-art"
-                  />
-                  <div className="queue-item-info">
-                    <div className="queue-item-title-line">
-                      <div
-                        className="queue-item-title truncate"
-                        style={isCurrentlyPlaying ? { color: 'var(--accent)' } : undefined}
-                      >
-                        {qi.track.title || 'Unknown'}
-                      </div>
-                      <span className={`queue-source ${qi.source}`}>{qi.source}</span>
-                    </div>
-                    <div className="queue-item-artist truncate">
-                      {qi.track.uploader || 'Unknown'}
-                    </div>
-                  </div>
-                  {qi.track.duration && (
-                    <span className="queue-item-dur">{fmt(qi.track.duration)}</span>
-                  )}
-                  <button
-                    className="ib ib-sm"
-                    style={{ opacity: 0, transition: 'opacity 150ms', flexShrink: 0 }}
-                    onClick={e => { e.stopPropagation(); onRemove(i); }}
-                    title="Remove from queue"
-                    aria-label={`Remove ${qi.track.title} from queue`}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Stitch ghost-pill clear button */}
-        {hasQueue && (
-          <div style={{ padding: 'var(--sp-3) var(--sp-2)', display: 'flex', justifyContent: 'center' }}>
-            <button
-              id="queue-clear-btn"
-              className="queue-clear-btn"
-              onClick={onClear}
-              aria-label="Clear queue"
-            >
-              Clear Queue
-            </button>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!currentTrack && !hasQueue && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 'var(--sp-9) var(--sp-4)',
-              gap: 'var(--sp-3)',
-              color: 'var(--text-3)',
-              textAlign: 'center',
-            }}
-            role="status"
-          >
-            <List size={32} strokeWidth={1.2} />
-            <div style={{ fontSize: 'var(--fs-md)', color: 'var(--text-2)' }}>Queue is empty</div>
-            <div style={{ fontSize: 'var(--fs-sm)' }}>
-              Search for music and add songs to your queue.
+                  {line.text}
+                </p>
+              ))}
             </div>
-          </div>
+          )
+        ) : (
+          <>
+            {currentTrack && (
+              <div className="queue-now">
+                <span className="art-well">
+                  <img src={artworkFor(currentTrack)} alt="" />
+                </span>
+                <div className="queue-now-info">
+                  <div className="queue-now-label">Now playing</div>
+                  <div className="truncate" title={currentTrack.title}>{currentTrack.title}</div>
+                  <div className="muted truncate" title={currentTrack.uploader}>{currentTrack.uploader}</div>
+                </div>
+                <div className={`eq eq-sm${playing ? '' : ' is-idle'}`} aria-hidden="true">
+                  <div className="eq-bar" />
+                  <div className="eq-bar" />
+                  <div className="eq-bar" />
+                  <div className="eq-bar" />
+                  <div className="eq-bar" />
+                </div>
+              </div>
+            )}
+
+            {hasQueue && (
+              <div role="list" aria-label="Up next">
+                <div className="section-kicker">Up next</div>
+                {queue.map((qi: QueueItem, i: number) => {
+                  const active = currentTrack?.id === qi.track.id;
+                  return (
+                    <div
+                      key={`${qi.track.id}-${i}`}
+                      className={`track-row${active ? ' active' : ''}${dragFrom === i ? ' dragging' : ''}`}
+                      role="listitem"
+                      draggable
+                      onDragStart={() => { dragged.current = true; setDragFrom(i); }}
+                      onDragOver={e => { e.preventDefault(); }}
+                      onDrop={() => {
+                        if (dragFrom !== null && dragFrom !== i) onMove(dragFrom, i);
+                        setDragFrom(null);
+                      }}
+                      onDragEnd={() => setDragFrom(null)}
+                      onClick={() => {
+                        if (dragged.current) { dragged.current = false; return; }
+                        onPlayIndex(i);
+                      }}
+                      tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && onPlayIndex(i)}
+                    >
+                      <span className="drag-handle" aria-hidden="true"><GripVertical size={12} /></span>
+                      <span className="track-row-art">
+                        <img src={artworkFor(qi.track)} alt="" />
+                      </span>
+                      <div className="track-row-info">
+                        <div className="track-row-name truncate" title={qi.track.title}>{qi.track.title}</div>
+                        <div className="track-row-artist truncate" title={`${qi.track.uploader || 'Unknown'} · ${qi.source}`}>
+                          {qi.track.uploader || 'Unknown'} · {qi.source}
+                        </div>
+                      </div>
+                      <div className="track-row-tail">
+                        {qi.track.duration ? <span className="track-row-dur">{fmt(qi.track.duration)}</span> : null}
+                        <button
+                          className="ghost-btn sm row-action"
+                          onClick={e => { e.stopPropagation(); onPlayNext(qi.track); }}
+                          title="Play next"
+                          aria-label={`Play ${qi.track.title} next`}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          className="ghost-btn sm row-action"
+                          onClick={e => { e.stopPropagation(); onRemove(i); }}
+                          title="Remove from queue"
+                          aria-label={`Remove ${qi.track.title}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
+                  The queue is this listening session. Save it as a playlist to keep it.
+                </p>
+                <button className="text-link" onClick={onClear} id="queue-clear-btn">Clear queue</button>
+                <form
+                  className="inline-form"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const name = playlistName.trim();
+                    if (!name) return;
+                    onSavePlaylist(name);
+                    setPlaylistName('');
+                  }}
+                >
+                  <input
+                    className="inline-input"
+                    value={playlistName}
+                    onChange={e => setPlaylistName(e.target.value)}
+                    placeholder="Save as playlist"
+                    aria-label="Playlist name"
+                  />
+                  <button className="text-link" type="submit" disabled={!playlistName.trim()}>Save</button>
+                </form>
+              </div>
+            )}
+
+            {!currentTrack && !hasQueue && (
+              <div className="empty-block">
+                <List size={28} strokeWidth={1.2} />
+                <p>Queue is empty</p>
+                <p className="muted">This session only. Playlists persist separately.</p>
+              </div>
+            )}
+          </>
         )}
+      </div>
       </div>
     </div>
   );

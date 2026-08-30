@@ -4,11 +4,11 @@ export function ConnectionBanner({ state }: { state: ConnectionState }) {
   if (state === 'connected') return null;
 
   const label: Record<ConnectionState, string> = {
-    starting:     'Starting backend…',
-    connecting:   'Connecting to backend…',
-    connected:    '',
+    starting: 'Starting backend…',
+    connecting: 'Connecting to backend…',
+    connected: '',
     disconnected: 'Lost connection — reconnecting…',
-    error:        'Backend unavailable',
+    error: 'Backend unavailable',
   };
 
   return (

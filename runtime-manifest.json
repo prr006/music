@@ -1,0 +1,18 @@
+{
+  "win32-x64": {
+    "yt-dlp": {
+      "version": "2026.08.19",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.08.19/yt-dlp.exe",
+      "sha256": "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a",
+      "fileName": "yt-dlp.exe"
+    },
+    "mpv": {
+      "version": "20260830",
+      "url": "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260830/mpv-x86_64-20260830-git-e8673660ab.7z",
+      "sha256": "464ab69b2248e7b592f0c27a927ffd1f016f7fa2d6d8b46b1a98254c5f2b670a",
+      "archive": "7z",
+      "executable": "mpv.exe",
+      "outputDir": "mpv"
+    }
+  }
+}

@@ -8,7 +8,7 @@ tags:
 
 # Product Overview
 
-`yt-music-cli`, terminal icinde YouTube uzerinden muzik aratip calmaya odaklanan hafif bir CLI uygulamasi.
+MELO, terminal ve masaustunde YouTube uzerinden muzik aratip calmaya odaklanan bir oynatici.
 
 ## Problem
 

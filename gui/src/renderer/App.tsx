@@ -1,16 +1,59 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from './hooks/useBackend';
-import { ChromeBar } from './components/ChromeBar';
+import type { Theme, View } from './types';
+import { TitleBar } from './components/TitleBar';
+import { Sidebar } from './components/Sidebar';
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { ArtworkStage } from './components/ArtworkStage';
+import { NowPlayingPanel } from './components/NowPlayingPanel';
 import { DiscoverStage } from './components/DiscoverStage';
+import { LibraryView } from './components/LibraryView';
+import { FavoritesView } from './components/FavoritesView';
+import { RadioView } from './components/RadioView';
 import { SearchOverlay } from './components/SearchOverlay';
 import { QueuePanel } from './components/QueuePanel';
-import { LibraryPanel } from './components/LibraryPanel';
+import { MiniPlayer } from './components/MiniPlayer';
+import { CompactMini } from './components/CompactMini';
+import { SettingsPopover } from './components/SettingsPopover';
+import { artworkFor } from './lib/media';
+import { readStoredTheme, writeStoredTheme } from './lib/theme-storage';
+import { readSidebarExpanded, writeSidebarExpanded } from './lib/sidebar-storage';
+import { isSpaceReservedTarget, isTypingTarget, matchShortcut } from './lib/hotkeys';
+import { syncMediaSession } from './lib/media-session';
 
-// ─── Theme ───────────────────────────────────────────────────────────────────
+function AmbientBackdrop({ src }: { src: string }) {
+  const [shown, setShown] = useState(src);
+  const [on, setOn] = useState(!!src);
+  const gen = useRef(0);
 
-type Theme = 'light' | 'dark' | 'system';
+  useEffect(() => {
+    if (!src) {
+      gen.current += 1;
+      setOn(false);
+      return;
+    }
+    const token = ++gen.current;
+    setOn(false);
+    const img = new Image();
+    img.onload = () => {
+      if (token !== gen.current) return;
+      setShown(src);
+      requestAnimationFrame(() => {
+        if (token !== gen.current) return;
+        setOn(true);
+      });
+    };
+    img.src = src;
+  }, [src]);
+
+  if (!shown) return null;
+  return (
+    <div className="ambient" aria-hidden="true">
+      <img src={shown} alt="" className={`ambient-img${on ? ' visible' : ''}`} />
+      <div className="ambient-vignette" />
+    </div>
+  );
+}
 
 function resolveTheme(t: Theme): 'light' | 'dark' {
   if (t === 'system') {
@@ -23,26 +66,32 @@ function applyTheme(t: Theme) {
   document.documentElement.setAttribute('data-theme', resolveTheme(t));
 }
 
-// ─── Panel state ─────────────────────────────────────────────────────────────
-
-type Panel = 'queue' | 'library' | null;
-
-// ─── App ─────────────────────────────────────────────────────────────────────
+function isMiniWindow() {
+  return typeof window !== 'undefined' && window.location.hash === '#mini';
+}
 
 export function App() {
   const b = useBackend();
+  const { state } = b;
+  const miniWindow = isMiniWindow();
 
-  // Theme
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem('ym-theme') as Theme) || 'light'
-  );
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme(localStorage));
+  const [view, setView] = useState<View>('home');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<'queue' | 'lyrics'>('queue');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => readSidebarExpanded(localStorage));
 
   useEffect(() => {
     applyTheme(theme);
-    localStorage.setItem('ym-theme', theme);
+    writeStoredTheme(theme, localStorage);
   }, [theme]);
 
-  // System theme listener
+  useEffect(() => {
+    writeSidebarExpanded(sidebarExpanded, localStorage);
+  }, [sidebarExpanded]);
+
   useEffect(() => {
     if (theme !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -51,131 +100,247 @@ export function App() {
     return () => mq.removeEventListener('change', h);
   }, [theme]);
 
+  useEffect(() => {
+    void window.api.setCloseBehavior?.(state.settings.closeBehavior);
+  }, [state.settings.closeBehavior]);
+
+  useEffect(() => {
+    void window.api.setMinimizeToTray?.(state.settings.minimizeToTray);
+  }, [state.settings.minimizeToTray]);
+
+  useEffect(() => {
+    void window.api.setMiniAlwaysOnTop?.(state.settings.miniAlwaysOnTop);
+  }, [state.settings.miniAlwaysOnTop]);
+
+  const didStartMin = useRef(false);
+  useEffect(() => {
+    if (didStartMin.current || !state.settings.startMinimized) return;
+    didStartMin.current = true;
+    window.api.windowMinimize?.();
+  }, [state.settings.startMinimized]);
+
   const cycleTheme = useCallback(() => {
     setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light');
   }, []);
 
-  // Active panel (right-side contextual)
-  const [panel, setPanel] = useState<Panel>(null);
-
-  const togglePanel = useCallback((which: NonNullable<Panel>) => {
-    setPanel(p => p === which ? null : which);
-  }, []);
-
-  const closePanel = useCallback(() => setPanel(null), []);
-
-  // Search overlay
-  const [searchOpen, setSearchOpen] = useState(false);
-
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
-  // Keyboard shortcut: Ctrl+F / Cmd+F → open search
+  const toggleQueue = useCallback(() => {
+    setRightTab('queue');
+    setQueueOpen(open => !open);
+  }, []);
+
+  useEffect(() => {
+    if (!queueOpen || rightTab !== 'lyrics' || !state.currentTrack) return;
+    void b.fetchLyrics(state.currentTrack);
+  }, [queueOpen, rightTab, state.currentTrack?.id]);
+
+  useEffect(() => {
+    return syncMediaSession(state.currentTrack, state.playing, {
+      play: () => { if (!state.playing) void b.togglePause(); },
+      pause: () => { if (state.playing) void b.togglePause(); },
+      next: () => { void b.nextTrack(); },
+      previous: () => { void b.previousTrack(); },
+      seek: seconds => { void b.seek(seconds); },
+    });
+  }, [state.currentTrack, state.playing, b.togglePause, b.nextTrack, b.previousTrack, b.seek]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setSearchOpen(true);
+        return;
+      }
+      if (isTypingTarget(e.target) || searchOpen) return;
+      const action = matchShortcut(e);
+      if (!action) return;
+      if (action === 'toggle' && isSpaceReservedTarget(e.target)) return;
+      e.preventDefault();
+      switch (action) {
+        case 'toggle': void b.togglePause(); break;
+        case 'seekBack': void b.seek(-10); break;
+        case 'seekForward': void b.seek(10); break;
+        case 'previous': void b.previousTrack(); break;
+        case 'next': void b.nextTrack(); break;
+        case 'volumeUp': void b.adjustVolume(5); break;
+        case 'volumeDown': void b.adjustVolume(-5); break;
+        case 'mute': void b.toggleMute(); break;
+        case 'search': setSearchOpen(true); break;
+        case 'queue': toggleQueue(); break;
+        case 'favorite': void b.toggleFavorite(); break;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [b, searchOpen, toggleQueue]);
 
-  // Collapse panel overlay click
-  const handleOverlayClick = useCallback(() => {
-    setPanel(null);
-  }, []);
+  const track = state.currentTrack;
+  const showMini = view !== 'home' && !!track;
+  const ambient = track ? artworkFor(track, true) : '';
 
-  const { state } = b;
+  if (miniWindow) {
+    return (
+      <CompactMini
+        state={state}
+        onTogglePause={b.togglePause}
+        onNext={b.nextTrack}
+        onPrevious={b.previousTrack}
+        onFavorite={() => void b.toggleFavorite()}
+        onShowMain={() => window.api.showMainWindow?.()}
+      />
+    );
+  }
 
   return (
-    <div className="app">
-      {/* Connection status banner (only visible when not connected) */}
+    <div className={`app${showMini ? ' has-mini' : ''}${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
+      <TitleBar />
       <ConnectionBanner state={state.connectionState} />
 
-      {/* Chrome Bar */}
-      <ChromeBar
-        theme={theme}
-        connectionState={state.connectionState}
-        queueOpen={panel === 'queue'}
-        libraryOpen={panel === 'library'}
-        onSearch={openSearch}
-        onToggleQueue={() => togglePanel('queue')}
-        onToggleLibrary={() => togglePanel('library')}
-        onCycleTheme={cycleTheme}
-        onRetry={b.retryBackend}
-      />
+      <div className="shell">
+        <Sidebar
+          view={view}
+          expanded={sidebarExpanded}
+          onToggleExpanded={() => setSidebarExpanded(v => !v)}
+          onNavigate={(v) => { setView(v); setSettingsOpen(false); }}
+          onSearch={openSearch}
+          onSettings={() => setSettingsOpen(s => !s)}
+          settingsOpen={settingsOpen}
+        />
 
-      {/* Main Stage */}
-      <div className={`stage${panel !== null ? ' panel-open' : ''}`}>
-        {/* Ambient bg + primary content */}
-        {state.currentTrack ? (
-          <ArtworkStage
+        <div className={`workspace${view === 'home' ? ' is-home' : ''}${queueOpen ? ' queue-open' : ''}`}>
+          <div className="workspace-main">
+          {view === 'home' ? (
+            <div className="home-layout">
+              <div className="player-stage">
+                <AmbientBackdrop src={ambient} />
+                <div className="player-body">
+                  {track ? (
+                    <ArtworkStage
+                      track={track}
+                      playing={state.playing}
+                      loading={state.loading}
+                      onTogglePause={b.togglePause}
+                    />
+                  ) : (
+                    <DiscoverStage
+                      state={state}
+                      onOpenSearch={openSearch}
+                      onPlay={b.play}
+                    />
+                  )}
+                  <NowPlayingPanel
+                    state={state}
+                    theme={theme}
+                    queueOpen={queueOpen}
+                    onTogglePause={b.togglePause}
+                    onNext={b.nextTrack}
+                    onPrevious={b.previousTrack}
+                    onSeekTo={b.seekTo}
+                    onSetVolume={b.setVolume}
+                    onToggleMute={b.toggleMute}
+                    onToggleShuffle={b.toggleShuffle}
+                    onCycleRepeat={b.cycleRepeat}
+                    onToggleFavorite={b.toggleFavorite}
+                    onAddToQueue={b.addToQueue}
+                    onToggleQueue={toggleQueue}
+                    onCycleTheme={cycleTheme}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : view === 'library' ? (
+            <LibraryView
+              state={state}
+              onPlay={b.play}
+              onToggleFavorite={b.toggleFavorite}
+              onOpenSearch={openSearch}
+              onCreatePlaylist={name => void b.createPlaylist(name)}
+              onDeletePlaylist={id => void b.deletePlaylist(id)}
+              onRenamePlaylist={(id, name) => void b.renamePlaylist(id, name)}
+              onPlayPlaylist={(id, index) => void b.playPlaylist(id, index)}
+              onRemoveFromPlaylist={(id, index) => void b.removeFromPlaylist(id, index)}
+              onReorderPlaylist={(id, from, to) => void b.reorderPlaylist(id, from, to)}
+              onAddToQueue={b.addToQueue}
+              onPlayNext={b.playNext}
+              onClearHistory={() => void b.clearHistory()}
+            />
+          ) : view === 'favorites' ? (
+            <FavoritesView
+              state={state}
+              onPlay={b.play}
+              onToggleFavorite={b.toggleFavorite}
+              onOpenSearch={openSearch}
+            />
+          ) : (
+            <RadioView
+              state={state}
+              onPlay={b.play}
+              onOpenSearch={openSearch}
+            />
+          )}
+          </div>
+
+          {queueOpen && (
+            <div className="drawer-scrim" onClick={() => setQueueOpen(false)} />
+          )}
+          <QueuePanel
+            open={queueOpen}
+            tab={rightTab}
+            onTab={setRightTab}
             state={state}
-            onTogglePause={b.togglePause}
-            onNext={b.nextTrack}
-            onPrevious={b.previousTrack}
-            onSeekTo={b.seekTo}
-            onSetVolume={b.setVolume}
-            onToggleMute={b.toggleMute}
-            onToggleShuffle={b.toggleShuffle}
-            onCycleRepeat={b.cycleRepeat}
-            onToggleFavorite={b.toggleFavorite}
-            onOpenQueue={() => togglePanel('queue')}
+            onClose={() => setQueueOpen(false)}
+            onPlayIndex={b.playFromQueue}
+            onClear={b.clearQueue}
+            onRemove={b.removeFromQueue}
+            onMove={b.moveQueue}
+            onSavePlaylist={name => void b.saveQueueAsPlaylist(name)}
+            onPlayNext={b.playNext}
           />
-        ) : (
-          <DiscoverStage
-            state={state}
-            onOpenSearch={openSearch}
-            onPlay={b.play}
-          />
-        )}
 
-        {/* Panel overlay (click to close) */}
-        <div
-          className={`panel-overlay${panel !== null ? ' visible' : ''}`}
-          onClick={handleOverlayClick}
-          aria-hidden="true"
-        />
-
-        {/* Queue Panel */}
-        <QueuePanel
-          open={panel === 'queue'}
-          state={state}
-          onClose={closePanel}
-          onPlay={b.play}
-          onClear={b.clearQueue}
-          onRemove={b.removeFromQueue}
-        />
-
-        {/* Library Panel */}
-        <LibraryPanel
-          open={panel === 'library'}
-          state={state}
-          onClose={closePanel}
-          onPlay={b.play}
-          onOpenSearch={openSearch}
-          onToggleFavorite={b.toggleFavorite}
-        />
+          {settingsOpen && (
+            <SettingsPopover
+              theme={theme}
+              connectionState={state.connectionState}
+              settings={state.settings}
+              onTheme={setTheme}
+              onSettings={patch => void b.saveSettings(patch)}
+              onRetry={b.retryBackend}
+              onToggleMini={() => void window.api.toggleMiniPlayer?.()}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Search Overlay (fullscreen, rendered on top of everything) */}
+      {showMini && (
+        <MiniPlayer
+          state={state}
+          onTogglePause={b.togglePause}
+          onNext={b.nextTrack}
+          onPrevious={b.previousTrack}
+          onSeekTo={b.seekTo}
+          onOpenHome={() => setView('home')}
+        />
+      )}
+
       {searchOpen && (
         <SearchOverlay
           results={state.searchResults}
           searching={state.searching}
           currentTrack={state.currentTrack}
           loadingTrack={state.loadingTrack}
+          recent={state.history}
+          playlists={state.playlists}
           onSearch={b.search}
           onPlay={b.play}
           onAddToQueue={b.addToQueue}
           onPlayNext={b.playNext}
+          onPlayPlaylist={id => void b.playPlaylist(id)}
           onClose={closeSearch}
         />
       )}
 
-      {/* Error toast */}
       {state.error && (
         <div className="toast error" role="alert" aria-live="assertive">
           {state.error}

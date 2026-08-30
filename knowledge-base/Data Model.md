@@ -35,8 +35,11 @@ interface Playlist {
 
 ## Diskte Tutulan Veriler
 
-- `~/.config/yt-music-cli/favorites.json`
-- `~/.config/yt-music-cli/playlists.json`
+- `~/.config/melo/favorites.json`
+- `~/.config/melo/playlists.json`
+- `~/.config/melo/history.json`
+- `~/.config/melo/downloads.json`
+- `~/.config/melo/settings.json`
 
 ## Veri Davranislari
 

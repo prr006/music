@@ -120,8 +120,8 @@ export function getLifecycleSkipReason(options = {}) {
   const env = options.env || process.env;
   const cwd = options.cwd || process.cwd();
 
-  if (env.YTMUSIC_SKIP_AUTO_INSTALL === '1') return 'disabled by YTMUSIC_SKIP_AUTO_INSTALL';
-  if (env.YTMUSIC_INSTALL_DRY_RUN === '1' || env.YTMUSIC_FORCE_AUTO_INSTALL === '1') return null;
+  if (env.MELO_SKIP_AUTO_INSTALL === '1') return 'disabled by MELO_SKIP_AUTO_INSTALL';
+  if (env.MELO_INSTALL_DRY_RUN === '1' || env.MELO_FORCE_AUTO_INSTALL === '1') return null;
   if (env.CI) return 'running in CI';
   if (existsSync(join(cwd, '.git'))) return 'running from a source checkout';
 
@@ -150,17 +150,17 @@ export function installRuntimeDependencies(options = {}) {
   const skipReason = getLifecycleSkipReason({ env, cwd: options.cwd });
 
   if (skipReason) {
-    log(`ytmusic-player: dependency setup skipped (${skipReason}).`);
+    log(`melo: dependency setup skipped (${skipReason}).`);
     return { status: 'skipped', missing: [] };
   }
 
   const missing = getMissingDependencies(resolveCommand);
   if (missing.length === 0) {
-    log('ytmusic-player: mpv and yt-dlp are ready.');
+    log('melo: mpv and yt-dlp are ready.');
     return { status: 'ready', missing: [] };
   }
 
-  log(`ytmusic-player: installing runtime dependencies: ${missing.join(', ')}`);
+  log(`melo: installing runtime dependencies: ${missing.join(', ')}`);
   const commands = createInstallCommands({
     platform,
     missing,
@@ -169,12 +169,12 @@ export function installRuntimeDependencies(options = {}) {
   });
 
   if (!commands) {
-    warn(`ytmusic-player: automatic setup is unavailable. Run: ${manualInstallHint(platform, missing)}`);
-    warn('ytmusic-player: installation will continue and setup will be retried on first launch.');
+    warn(`melo: automatic setup is unavailable. Run: ${manualInstallHint(platform, missing)}`);
+    warn('melo: installation will continue and setup will be retried on first launch.');
     return { status: 'unavailable', missing };
   }
 
-  const dryRun = env.YTMUSIC_INSTALL_DRY_RUN === '1';
+  const dryRun = env.MELO_INSTALL_DRY_RUN === '1';
   const spawn = options.spawn || spawnSync;
   for (const command of commands) {
     log(`> ${formatCommand(command)}`);
@@ -183,9 +183,9 @@ export function installRuntimeDependencies(options = {}) {
     const result = spawn(command.command, command.args, { stdio: 'inherit', env });
     if (result.error || result.status !== 0) {
       const detail = result.error ? `: ${result.error.message}` : ` (exit ${result.status})`;
-      warn(`ytmusic-player: dependency installation failed${detail}.`);
-      warn(`ytmusic-player: run manually: ${manualInstallHint(platform, missing)}`);
-      warn('ytmusic-player: installation will continue and setup will be retried on first launch.');
+      warn(`melo: dependency installation failed${detail}.`);
+      warn(`melo: run manually: ${manualInstallHint(platform, missing)}`);
+      warn('melo: installation will continue and setup will be retried on first launch.');
       return { status: 'failed', missing };
     }
   }
@@ -194,12 +194,12 @@ export function installRuntimeDependencies(options = {}) {
 
   const remaining = getMissingDependencies(resolveCommand);
   if (remaining.length > 0) {
-    warn(`ytmusic-player: setup completed, but these commands are not on PATH yet: ${remaining.join(', ')}`);
-    warn('ytmusic-player: open a new terminal before launching ym.');
+    warn(`melo: setup completed, but these commands are not on PATH yet: ${remaining.join(', ')}`);
+    warn('melo: open a new terminal before launching melo.');
     return { status: 'path-refresh-needed', missing: remaining };
   }
 
-  log('ytmusic-player: mpv and yt-dlp installed successfully.');
+  log('melo: mpv and yt-dlp installed successfully.');
   return { status: 'installed', missing: [] };
 }
 
@@ -211,7 +211,7 @@ if (scriptPath === modulePath) {
     installRuntimeDependencies();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`ytmusic-player: dependency setup failed: ${message}`);
-    console.warn('ytmusic-player: installation will continue and setup will be retried on first launch.');
+    console.warn(`melo: dependency setup failed: ${message}`);
+    console.warn('melo: installation will continue and setup will be retried on first launch.');
   }
 }
