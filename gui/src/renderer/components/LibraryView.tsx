@@ -75,7 +75,9 @@ export function LibraryView({ state, onPlay, onToggleFavorite, onOpenSearch }: L
         </div>
       ) : (
         <>
-          <div className="section-kicker">Featured albums</div>
+          <div className="section-kicker">
+            {filter === 'favorites' ? 'Favorites' : filter === 'recent' ? 'Recently played' : 'Tracks'}
+          </div>
           <div className="album-grid" role="list">
             {tracks.slice(0, 12).map((track) => {
               const isFav = favIds.has(track.id);

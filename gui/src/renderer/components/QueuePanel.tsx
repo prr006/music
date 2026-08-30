@@ -38,7 +38,9 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
       <div className="drawer-body">
         {currentTrack && (
           <div className="queue-now">
-            <img src={artworkFor(currentTrack)} alt="" />
+            <span className="art-well">
+              <img src={artworkFor(currentTrack)} alt="" />
+            </span>
             <div className="queue-now-info">
               <div className="queue-now-label">Now playing</div>
               <div className="truncate" title={currentTrack.title}>{currentTrack.title}</div>
@@ -61,7 +63,9 @@ export function QueuePanel({ open, state, onClose, onPlay, onClear, onRemove }: 
                   tabIndex={0}
                   onKeyDown={e => e.key === 'Enter' && onPlay(qi.track)}
                 >
-                  <img src={artworkFor(qi.track)} alt="" className="track-row-art-img" />
+                  <span className="track-row-art">
+                    <img src={artworkFor(qi.track)} alt="" />
+                  </span>
                   <div className="track-row-info">
                     <div className="track-row-name truncate" title={qi.track.title}>{qi.track.title}</div>
                     <div className="track-row-artist truncate" title={`${qi.track.uploader || 'Unknown'} · ${qi.source}`}>

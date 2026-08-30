@@ -89,7 +89,14 @@ export function SearchOverlay({
       >
         <form
           className="search-input-row"
-          onSubmit={e => { e.preventDefault(); if (query.trim()) onSearch(query); }}
+          onSubmit={e => {
+            e.preventDefault();
+            if (focusedIdx !== null && results[focusedIdx]) {
+              handlePlay(results[focusedIdx]);
+              return;
+            }
+            if (query.trim()) onSearch(query);
+          }}
           role="search"
         >
           <Search size={16} strokeWidth={1.7} />
@@ -135,7 +142,7 @@ export function SearchOverlay({
           <div className="search-section" aria-busy="true">
             {Array.from({ length: 5 }, (_, i) => (
               <div key={i} className="track-row" style={{ pointerEvents: 'none', opacity: 1 - i * 0.12 }}>
-                <div className="skel" style={{ width: 40, height: 40, borderRadius: 8 }} />
+                <div className="skel" style={{ width: 64, height: 36, borderRadius: 6 }} />
                 <div className="track-row-info">
                   <div className="skel" style={{ width: '55%', height: 10, marginBottom: 8 }} />
                   <div className="skel" style={{ width: '32%', height: 8 }} />
