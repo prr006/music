@@ -50,7 +50,9 @@ export function RadioView({ state, onPlay, onOpenSearch }: RadioViewProps) {
                   <div className="track-row-name truncate" title={track.title}>{track.title}</div>
                   <div className="track-row-artist truncate" title={track.uploader || 'Unknown'}>{track.uploader || 'Unknown'}</div>
                 </div>
-                {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
+                <div className="track-row-tail">
+                  {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
+                </div>
               </div>
             );
           })}

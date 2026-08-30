@@ -46,15 +46,17 @@ export function FavoritesView({ state, onPlay, onToggleFavorite, onOpenSearch }:
                   <div className="track-row-name truncate" title={track.title}>{track.title}</div>
                   <div className="track-row-artist truncate" title={track.uploader || 'Unknown'}>{track.uploader || 'Unknown'}</div>
                 </div>
-                {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
-                <button
-                  className="ghost-btn sm fav"
-                  onClick={e => { e.stopPropagation(); onToggleFavorite(track); }}
-                  title="Remove from favorites"
-                  aria-label={`Remove ${track.title} from favorites`}
-                >
-                  <Heart size={14} fill="currentColor" />
-                </button>
+                <div className="track-row-tail">
+                  {track.duration ? <span className="track-row-dur">{fmt(track.duration)}</span> : null}
+                  <button
+                    className="ghost-btn sm fav"
+                    onClick={e => { e.stopPropagation(); onToggleFavorite(track); }}
+                    title="Remove from favorites"
+                    aria-label={`Remove ${track.title} from favorites`}
+                  >
+                    <Heart size={14} fill="currentColor" />
+                  </button>
+                </div>
               </div>
             );
           })}

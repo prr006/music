@@ -200,6 +200,7 @@ export function NowPlayingPanel({
             className={`ghost-btn${shuffle ? ' on' : ''}`}
             onClick={onToggleShuffle}
             title="Shuffle"
+            aria-label="Shuffle"
             aria-pressed={shuffle}
             id="btn-shuffle"
             disabled={idle}
