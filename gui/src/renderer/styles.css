@@ -1,5 +1,5 @@
 /* ==========================================================================
-   AURA — desktop music player
+   MELO — desktop music player
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Outfit:wght@300;400;500;600&display=swap');
@@ -80,7 +80,6 @@ img { display: block; max-width: 100%; }
 .muted { color: var(--text-3); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes vinyl-spin { to { transform: translateY(-50%) rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes eq-bar {
@@ -241,7 +240,9 @@ img { display: block; max-width: 100%; }
   justify-content: center;
   overflow: hidden;
   min-width: 0;
-  padding: 24px;
+  padding: 36px 40px;
+  container-type: inline-size;
+  container-name: stage;
 }
 
 .ambient { position: absolute; inset: 0; pointer-events: none; }
@@ -259,46 +260,23 @@ img { display: block; max-width: 100%; }
     linear-gradient(90deg, transparent 62%, var(--bg-2) 100%);
 }
 
-/* ── Vinyl + artwork ───────────────────────────────────────────────────── */
+/* ── Hero artwork ──────────────────────────────────────────────────────── */
 
-.vinyl-stage {
+.hero-stage {
   position: relative;
-  width: min(82%, 560px);
-  max-width: 100%;
   z-index: 1;
-  animation: rise 0.5s ease both;
-}
-.vinyl-disc {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 52%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 50%, #2a2a2a 0 9%, #111 10% 12%, transparent 13%),
-    repeating-radial-gradient(circle at 50% 50%, #171717 0 1px, #0d0d0d 2px, #151515 3px);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
-  z-index: 0;
-  pointer-events: none;
-}
-.vinyl-disc.spinning { animation: vinyl-spin 3.8s linear infinite; }
-.vinyl-label {
-  position: absolute; inset: 42%;
-  border-radius: 50%;
-  background: #3a2a28;
-  box-shadow: inset 0 0 0 6px #111;
+  width: min(94%, 980px);
+  max-width: 100%;
+  animation: rise 0.45s ease both;
 }
 .artwork-tile {
   position: relative;
-  z-index: 1;
-  width: 70%;
+  width: 100%;
   aspect-ratio: 16 / 9;
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--art-mat);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255,255,255,0.05);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -874,25 +852,28 @@ img { display: block; max-width: 100%; }
 /* ── Responsive ────────────────────────────────────────────────────────── */
 
 @media (max-width: 1600px) {
-  .vinyl-stage { width: min(84%, 500px); }
+  .hero-stage { width: min(94%, 860px); }
+  .stage { padding: 28px 32px; }
 }
 @media (max-width: 1366px) {
   :root { --np-w: clamp(280px, 34vw, 380px); --sidebar-w: 68px; }
   .np-panel { padding: 22px 26px 18px; }
   .library-page { padding: 26px 28px; }
   .album-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hero-stage { width: min(96%, 720px); }
+  .stage { padding: 24px; }
 }
 @media (max-width: 1100px) {
   :root { --np-w: clamp(260px, 36vw, 340px); --sidebar-w: 64px; }
   .np-title { font-size: clamp(18px, 2vw, 28px); }
   .play-btn { width: 52px; height: 52px; }
-  .vinyl-stage { width: min(90%, 420px); }
-  .stage { padding: 16px; }
+  .hero-stage { width: 96%; }
+  .stage { padding: 18px; }
 }
 @media (max-width: 900px) {
   .home-layout { grid-template-columns: minmax(0, 1fr) minmax(240px, 38vw); }
   .np-panel { padding: 16px 18px; }
-  .vinyl-stage { width: min(94%, 340px); }
+  .hero-stage { width: 100%; }
   .album-grid { grid-template-columns: minmax(0, 1fr); }
   .mini-time { display: none; }
   .drawer { width: min(340px, 100%); }
@@ -906,15 +887,25 @@ img { display: block; max-width: 100%; }
     border-top: 1px solid var(--border);
     max-height: 48%;
   }
-  .vinyl-stage { width: min(92%, 320px); }
+  .hero-stage { width: 100%; }
+  .stage { padding: 16px; }
 }
 @media (max-height: 700px) {
-  .vinyl-stage { width: min(70%, 360px); }
+  .hero-stage { width: min(88%, 640px); }
+  .stage { padding: 16px 20px; }
   .np-title { font-size: clamp(16px, 2.2vh, 24px); }
   .play-btn { width: 48px; height: 48px; }
   .np-toolbar { margin-bottom: 12px; }
   .np-artist-row { margin-bottom: 16px; }
 }
+@container stage (max-width: 900px) {
+  .hero-stage { width: min(100%, 720px); }
+}
+@container stage (max-width: 640px) {
+  .hero-stage { width: 100%; }
+  .artwork-tile { border-radius: 12px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 1ms !important;

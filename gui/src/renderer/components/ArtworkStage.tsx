@@ -37,10 +37,7 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
   if (!track) return null;
 
   return (
-    <div className="vinyl-stage">
-      <div className={`vinyl-disc${playing ? ' spinning' : ''}`} aria-hidden="true">
-        <div className="vinyl-label" />
-      </div>
+    <div className="hero-stage">
       <button
         type="button"
         className={[

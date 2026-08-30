@@ -2,7 +2,7 @@
   "name": "ytmusic-player-gui",
   "version": "0.1.0",
   "private": true,
-  "description": "Modern Windows GUI for ytmusic-player",
+  "description": "MELO — desktop music player",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "com.ytmusic-player.gui",
-    "productName": "YTMusic Player",
+    "productName": "MELO",
     "win": {
       "target": "nsis",
       "icon": "resources/icon.ico"

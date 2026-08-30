@@ -16,7 +16,7 @@ export function DiscoverStage({ state, onOpenSearch, onPlay }: DiscoverStageProp
   return (
     <div className="discover" role="main" aria-label="Discover">
       <div className="discover-hero">
-        <div className="discover-kicker">AURA</div>
+        <div className="discover-kicker">MELO</div>
         <h1 className="discover-heading">
           {isConnected ? 'Press play on the quiet hours.' : 'Connecting'}
         </h1>

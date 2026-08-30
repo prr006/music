@@ -11,9 +11,10 @@ interface SidebarProps {
 
 function LogoMark() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="white" strokeWidth="1.6" />
-      <circle cx="12" cy="12" r="3.2" fill="white" />
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 18V6l11-2v12" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="7" cy="18" r="3" fill="white" />
+      <circle cx="18" cy="16" r="3" fill="white" />
     </svg>
   );
 }
@@ -24,7 +25,7 @@ export function Sidebar({ view, onNavigate, onSearch, onSettings, settingsOpen }
       <button
         className="sidebar-logo"
         onClick={() => onNavigate('home')}
-        title="AURA"
+        title="MELO"
         aria-label="Home"
       >
         <LogoMark />

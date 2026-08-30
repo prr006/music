@@ -36,7 +36,7 @@ export function TitleBar() {
   return (
     <div className="titlebar" onDoubleClick={handleMaximize}>
       <div className="titlebar-left" aria-hidden="true" />
-      <div className="titlebar-wordmark">AURA</div>
+      <div className="titlebar-wordmark">MELO</div>
       <div className="titlebar-right" role="group" aria-label="Window controls">
         <button
           className="wc-btn wc-minimize"

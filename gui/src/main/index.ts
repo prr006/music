@@ -35,7 +35,7 @@ if (!gotTheLock) {
       height: 860,
       minWidth: 960,
       minHeight: 620,
-      title: 'AURA',
+      title: 'MELO',
       backgroundColor: '#0b0b10',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
