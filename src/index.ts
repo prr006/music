@@ -1,10 +1,7 @@
-import { PlaybackEngine } from './engine';
+import { MeloApp } from './melo/app';
 import { renderSearch, renderResults, renderPlayer, renderFavorites, clearScreen, renderPlaylistList, renderPlaylistDetail, renderPlaylistPicker, renderNewPlaylistInput, renderRenamePlaylistInput, renderLanguagePicker, renderDownloads } from './ui';
-import type { Track } from './types';
-import type { Playlist } from './types';
-import { join } from 'path';
-import { setLang, getLang, t, LANGS } from './i18n';
-import { resolveCommand } from './platform';
+import type { Track, Playlist } from './types';
+import { setLang, getLang, t, LANGS, type Lang } from './i18n';
 import { ensureRuntimeDependencies } from './dependencies';
 import { CLI_HELP, parseCliArgs, type CliCommand, type ControlCommand } from './cli';
 import { ControlServer, ControlUnavailableError, sendControlCommand, type ControlResponse, type ControlDataResponse } from './control';
@@ -68,7 +65,7 @@ let terminalStarted = false;
 
 // ─── Engine ───────────────────────────────────────────────────────────────
 
-const engine = new PlaybackEngine();
+const engine = new MeloApp();
 
 // ─── Engine event listeners ───────────────────────────────────────────────
 
@@ -340,7 +337,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       renderPlayerNow();
       return { ok: true, message: `Repeat: ${command.mode}` };
     case 'favorite': {
-      const track = currentTrackOrThrow();
+      const track = command.track ?? currentTrackOrThrow();
       const added = engine.toggleFavorite(track);
       renderPlayerNow();
       return { ok: true, message: added ? 'Added to favorites.' : 'Removed from favorites.' };
@@ -393,7 +390,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
       return {
         ok: true,
         message: engine.queue.map((qi, i) => `${i + 1}. [${qi.source}] ${qi.track.title}${qi.track.uploader ? ` — ${qi.track.uploader}` : ''}`).join('\n'),
-        data: engine.queue,
+        data: engine.queue.snapshot(),
       } satisfies ControlDataResponse;
     }
     case 'get-state': {
@@ -402,7 +399,7 @@ async function handleControlCommand(command: ControlCommand): Promise<ControlRes
         message: statusText(),
         data: {
           currentTrack: engine.currentTrack,
-          queue: engine.queue,
+          queue: engine.queue.snapshot(),
           history: engine.history,
           volume: engine.volume,
           muted: engine.state.muted,
@@ -1062,7 +1059,7 @@ async function runInteractive(initialQuery: string | null) {
   await ensureRuntimeDependencies();
 
   const settings = engine.loadSettings();
-  setLang(settings.lang);
+  setLang((settings.lang as Lang) || 'en');
 
   await engine.start();
   playerStarted = true;
@@ -1082,6 +1079,7 @@ async function runInteractive(initialQuery: string | null) {
     engine.on('volume-changed', forwardEvent);
     engine.on('shuffle-changed', forwardEvent);
     engine.on('repeat-changed', forwardEvent);
+    engine.on('favorites-changed', forwardEvent);
 
   process.stdin.setRawMode(true);
   terminalStarted = true;

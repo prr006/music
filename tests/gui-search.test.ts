@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test, afterAll } from 'bun:test';
-import { PlaybackEngine } from '../src/engine';
+import { MeloApp } from '../src/melo/app';
 import { ControlServer, sendControlCommand } from '../src/control';
 import type { Track } from '../src/types';
 import type { ControlCommand } from '../src/cli';
@@ -13,7 +13,7 @@ import type { ControlCommand } from '../src/cli';
 const TIMEOUT = 30_000;
 
 describe('Search via control protocol', () => {
-  let engine: PlaybackEngine;
+  let engine: MeloApp;
   let controlServer: ControlServer;
 
   afterAll(async () => {
@@ -23,7 +23,7 @@ describe('Search via control protocol', () => {
   });
 
   test('starts engine and control server', async () => {
-    engine = new PlaybackEngine();
+    engine = new MeloApp();
     await engine.start();
 
     controlServer = new ControlServer(async (command) => {
@@ -54,7 +54,7 @@ describe('Search via control protocol', () => {
           return {
             ok: true,
             message: engine.queue.map((qi, i) => `${i + 1}. [${qi.source}] ${qi.track.title}`).join('\n'),
-            data: engine.queue,
+            data: engine.queue.snapshot(),
           };
         case 'get-state':
           return {
@@ -62,7 +62,7 @@ describe('Search via control protocol', () => {
             message: 'ok',
             data: {
               currentTrack: engine.currentTrack,
-              queue: engine.queue,
+              queue: engine.queue.snapshot(),
               volume: engine.volume,
               paused: engine.state.paused,
             },
@@ -87,10 +87,10 @@ describe('Search via control protocol', () => {
     if ('data' in response) {
       const data = (response as any).data as Track[];
       expect(data.length).toBeGreaterThan(0);
-      expect(data[0].id).toBeTruthy();
-      expect(data[0].title).toBeTruthy();
-      expect(data[0].url).toContain('youtube.com');
-      console.log(`  Found: "${data[0].title}" (${data[0].id})`);
+      expect(data[0]!.id).toBeTruthy();
+      expect(data[0]!.title).toBeTruthy();
+      expect(data[0]!.url).toContain('youtube.com');
+      console.log(`  Found: "${data[0]!.title}" (${data[0]!.id})`);
     }
   }, TIMEOUT);
 
@@ -203,7 +203,7 @@ describe('Search via control protocol', () => {
 // updating with the new track's info, just as they do in the GUI.
 
 describe('Playback-state events after track switch', () => {
-  let engine: PlaybackEngine;
+  let engine: MeloApp;
   let controlServer: ControlServer;
 
   afterAll(async () => {
@@ -213,7 +213,7 @@ describe('Playback-state events after track switch', () => {
   });
 
   test('sets up engine and control server with event forwarding', async () => {
-    engine = new PlaybackEngine();
+    engine = new MeloApp();
     await engine.start();
 
     controlServer = new ControlServer(async (command) => {
@@ -236,7 +236,7 @@ describe('Playback-state events after track switch', () => {
             message: 'ok',
             data: {
               currentTrack: engine.currentTrack,
-              queue: engine.queue,
+              queue: engine.queue.snapshot(),
               volume: engine.volume,
               paused: engine.state.paused,
             },

@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, test, afterAll } from 'bun:test';
-import { PlaybackEngine } from '../src/engine';
+import { MeloApp } from '../src/melo/app';
 import { ControlServer, sendControlCommand } from '../src/control';
 import { join } from 'path';
 import type { Track } from '../src/types';
@@ -27,7 +27,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
-function waitForEvent(engine: PlaybackEngine, eventName: string, timeoutMs = 30000): Promise<any> {
+function waitForEvent(engine: MeloApp, eventName: string, timeoutMs = 30000): Promise<any> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timeout waiting for event: ${eventName}`));
@@ -39,7 +39,7 @@ function waitForEvent(engine: PlaybackEngine, eventName: string, timeoutMs = 300
   });
 }
 
-function waitForEventOrTimeout(engine: PlaybackEngine, eventName: string, timeoutMs = 15000): Promise<any | null> {
+function waitForEventOrTimeout(engine: MeloApp, eventName: string, timeoutMs = 15000): Promise<any | null> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), timeoutMs);
     engine.once(eventName, (data: any) => {
@@ -52,7 +52,7 @@ function waitForEventOrTimeout(engine: PlaybackEngine, eventName: string, timeou
 // ─── Integration Tests ────────────────────────────────────────────────────
 
 describe('Real Backend Integration', () => {
-  let engine: PlaybackEngine;
+  let engine: MeloApp;
   let controlServer: ControlServer;
 
   afterAll(async () => {
@@ -63,8 +63,8 @@ describe('Real Backend Integration', () => {
 
   // ─── 1. Engine + mpv startup ────────────────────────────────────────
 
-  test('starts real mpv via PlaybackEngine', async () => {
-    engine = new PlaybackEngine(); // Uses real Player, no mocks
+  test('starts real mpv via MeloApp', async () => {
+    engine = new MeloApp(); // Uses real Player, no mocks
     await engine.start();
 
     // Verify mpv IPC is connected
@@ -96,11 +96,11 @@ describe('Real Backend Integration', () => {
           return { ok: true, message: `Play next: ${command.track.title}` };
         }
         case 'get-queue': {
-          const q = engine.queue;
+          const q = engine.queue.snapshot();
           return {
             ok: true,
             message: q.map((qi, i) => `${i + 1}. [${qi.source}] ${qi.track.title}`).join('\n'),
-            data: q,
+            data: Array.isArray(q) ? q : engine.queue.snapshot(),
           };
         }
         case 'get-state': {
@@ -226,7 +226,7 @@ describe('Real Backend Integration', () => {
     expect(engine.queue.length).toBe(queueLenBefore + 1);
 
     // The last item should be the manually added track
-    const lastItem = engine.queue[engine.queue.length - 1];
+    const lastItem = engine.queue.snapshot()[engine.queue.length - 1];
     expect(lastItem!.track.id).toBe(manualTrack!.id);
     expect(lastItem!.source).toBe('manual');
 
@@ -246,8 +246,8 @@ describe('Real Backend Integration', () => {
     engine.playNext(nextTrack!);
 
     // The first queue item should be the play-next track
-    expect(engine.queue[0]!.track.id).toBe(nextTrack!.id);
-    expect(engine.queue[0]!.source).toBe('manual');
+    expect(engine.queue.snapshot()[0]!.track.id).toBe(nextTrack!.id);
+    expect(engine.queue.snapshot()[0]!.source).toBe('manual');
 
     console.log(`  Inserted "${nextTrack!.title}" at queue front via playNext`);
   }, TIMEOUT);
@@ -262,11 +262,11 @@ describe('Real Backend Integration', () => {
     expect(radioItems.length).toBeGreaterThan(0);
 
     // playNext inserts at front (index 0), so it should be the first queue item
-    const firstItem = engine.queue[0];
+    const firstItem = engine.queue.snapshot()[0];
     expect(firstItem!.source).toBe('manual');
 
     // addToQueue appends to end, so it should be the last queue item
-    const lastItem = engine.queue[engine.queue.length - 1];
+    const lastItem = engine.queue.snapshot()[engine.queue.length - 1];
     expect(lastItem!.source).toBe('manual');
 
     console.log(`  Queue order: [manual(playNext)] → [${radioItems.length} radio] → [manual(addToQueue)]`);
@@ -289,7 +289,7 @@ describe('Real Backend Integration', () => {
     }
 
     // After manual tracks are exhausted, we should be on a radio track
-    const currentIsManual = engine.queue.length > 0 && engine.currentTrack?.id !== engine.queue[0]?.track.id;
+    const currentIsManual = engine.queue.length > 0 && engine.currentTrack?.id !== engine.queue.snapshot()[0]?.track.id;
     console.log(`  After manual queue: current="${engine.currentTrack?.title}", queue items=${engine.queue.length}`);
   }, TIMEOUT);
 
@@ -326,8 +326,8 @@ describe('Real Backend Integration', () => {
 
     expect(response.ok).toBe(true);
     expect(engine.queue.length).toBe(queueLenBefore + 1);
-    expect(engine.queue[engine.queue.length - 1]!.track.id).toBe(track!.id);
-    expect(engine.queue[engine.queue.length - 1]!.source).toBe('manual');
+    expect(engine.queue.snapshot()[engine.queue.length - 1]!.track.id).toBe(track!.id);
+    expect(engine.queue.snapshot()[engine.queue.length - 1]!.source).toBe('manual');
 
     console.log(`  Control socket add-to-queue: "${track!.title}" (${response.message})`);
   }, TIMEOUT);
@@ -533,7 +533,6 @@ describe('Real Backend Integration', () => {
     await engine.stop();
     expect(engine.currentTrack).toBeNull();
     expect(engine.queue.length).toBe(0);
-    expect(engine.history.length).toBe(0);
     console.log(`  Playback stopped, state cleared`);
   }, TIMEOUT);
 

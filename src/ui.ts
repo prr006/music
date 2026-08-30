@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import { t, getLang, langNames } from './i18n';
-import type { PlayerState } from './player';
+import type { PlaybackSnapshot as PlayerState } from './melo/types';
 import type { Track, Playlist } from './types';
 
 function fmt(sec: number): string {

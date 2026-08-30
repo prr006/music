@@ -1,160 +1,118 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
-import { mock } from 'bun:test';
 import { EventEmitter } from 'events';
+import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { MeloApp } from '../src/melo/app';
+import { JsonStore } from '../src/melo/persistence/json-store';
+import type { PlaybackDriver, PlaybackSnapshot, RepeatMode, Track } from '../src/melo/types';
 
-// ─── Mock Player ──────────────────────────────────────────────────────────
+let mockLoadCalls: string[] = [];
 
-let mockLoadTrackCalls: string[] = [];
-
-class MockPlayer extends EventEmitter {
-  state = {
-    title: '',
+class MockPlayer extends EventEmitter implements PlaybackDriver {
+  snapshot: PlaybackSnapshot = {
     paused: false,
     muted: false,
     timePos: 0,
     duration: 0,
     volume: 100,
-    repeatMode: 'off' as 'off' | 'one' | 'all',
+    repeatMode: 'off',
   };
 
   async start() {}
   async quit() {}
-  async loadTrack(url: string) { mockLoadTrackCalls.push(url); }
-  async togglePause() { this.state.paused = !this.state.paused; }
-  async setPaused(paused: boolean) { this.state.paused = paused; }
-  async toggleMute() { this.state.muted = !this.state.muted; return this.state.muted; }
+  async load(url: string) { mockLoadCalls.push(url); }
+  async togglePause() { this.snapshot.paused = !this.snapshot.paused; }
+  async setPaused(paused: boolean) { this.snapshot.paused = paused; }
+  async toggleMute() { this.snapshot.muted = !this.snapshot.muted; return this.snapshot.muted; }
   async seek(_s: number) {}
   async stop() {}
-  async setVolume(level: number) { this.state.volume = level; }
-  async getVolume() { return this.state.volume; }
-  async setRepeatMode(mode: 'off' | 'one' | 'all') { this.state.repeatMode = mode; }
+  async setVolume(level: number) {
+    this.snapshot.volume = Math.max(0, Math.min(100, Math.round(level)));
+    return this.snapshot.volume;
+  }
+  async getVolume() { return this.snapshot.volume; }
+  async setRepeatMode(mode: RepeatMode) { this.snapshot.repeatMode = mode; }
 }
-
-// ─── Mock search/fetchMix ─────────────────────────────────────────────────
 
 const mockSearch = async (query: string, limit?: number) => {
   const count = limit ?? 3;
   return Array.from({ length: count }, (_, i) => ({
     id: `search-${i}`,
     title: `Search Result ${i} for "${query}"`,
-    url: `https://youtube.com/watch?v=search-${i}`,
+    url: `https://www.youtube.com/watch?v=search-${i}`,
     duration: 180 + i * 10,
     uploader: `Artist ${i}`,
+    artwork: `https://i.ytimg.com/vi/search-${i}/mqdefault.jpg`,
   }));
 };
 
-const mockFetchMix = async (videoId: string, limit?: number) => {
-  // Small delay to simulate async network
+const mockRelated = async (videoId: string, limit?: number) => {
   await new Promise(r => setTimeout(r, 10));
   const count = limit ?? 10;
   return Array.from({ length: count }, (_, i) => ({
     id: `mix-${videoId}-${i}`,
     title: `Mix Track ${i} for ${videoId}`,
-    url: `https://youtube.com/watch?v=mix-${videoId}-${i}`,
+    url: `https://www.youtube.com/watch?v=mix-${videoId}-${i}`,
     duration: 200 + i * 10,
     uploader: `Mix Artist ${i}`,
+    artwork: `https://i.ytimg.com/vi/mix-${videoId}-${i}/mqdefault.jpg`,
   }));
 };
-
-// ─── Mock config ──────────────────────────────────────────────────────────
-
-let mockFavorites: Track[] = [];
-
-mock.module('../src/config', () => ({
-  loadFavorites: () => mockFavorites,
-  saveFavorites: (favs: Track[]) => { mockFavorites = favs; },
-  isFavorite: (favs: Track[], id: string) => favs.some((t: Track) => t.id === id),
-  toggleFavorite: (favs: Track[], track: Track) => {
-    const idx = favs.findIndex((t: Track) => t.id === track.id);
-    if (idx >= 0) {
-      favs.splice(idx, 1);
-      return { favorites: favs, added: false };
-    }
-    favs.push(track);
-    return { favorites: favs, added: true };
-  },
-  loadPlaylists: () => [],
-  createPlaylist: () => ({ id: 'pl-1', name: 'Test', tracks: [], createdAt: '' }),
-  deletePlaylist: () => [],
-  renamePlaylist: () => {},
-  addTrackToPlaylist: () => true,
-  removeTrackFromPlaylist: () => {},
-  loadDownloads: () => [],
-  isDownloaded: () => false,
-  addDownloadRecord: (dl: Track[], track: Track) => [...dl, track],
-  deleteDownloadRecord: (dl: Track[], id: string) => dl.filter((t: Track) => t.id !== id),
-  loadSettings: () => ({ lang: 'en' }),
-  saveSettings: () => {},
-  MUSIC_DIR: '/tmp/test-music',
-}));
-
-// ─── Import engine ────────────────────────────────────────────────────────
-
-import { PlaybackEngine } from '../src/engine';
-import type { Track } from '../src/types';
 
 function makeTrack(id: string, title?: string): Track {
   return {
     id,
     title: title ?? `Track ${id}`,
-    url: `https://youtube.com/watch?v=${id}`,
+    url: `https://www.youtube.com/watch?v=${id}`,
     duration: 200,
     uploader: `Artist ${id}`,
+    artwork: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
   };
 }
 
-function waitForEvent(engine: PlaybackEngine, eventName: string, timeoutMs = 3000): Promise<any> {
+function waitForEvent(app: MeloApp, eventName: string, timeoutMs = 3000): Promise<any> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error(`Timeout waiting for event: ${eventName}`));
     }, timeoutMs);
 
-    engine.once(eventName, (data: any) => {
+    app.once(eventName, (data: any) => {
       clearTimeout(timer);
       resolve(data);
     });
   });
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────
-
-describe('PlaybackEngine', () => {
-  let engine: PlaybackEngine;
+describe('MeloApp', () => {
+  let engine: MeloApp;
   let player: MockPlayer;
 
   beforeEach(() => {
-    mockLoadTrackCalls = [];
-    mockFavorites = [];
+    mockLoadCalls = [];
     player = new MockPlayer();
-    engine = new PlaybackEngine({
-      player: player as any,
-      searchFn: mockSearch,
-      fetchMixFn: mockFetchMix,
-      favorites: [],
-      playlists: [],
-      downloads: [],
+    engine = new MeloApp({
+      playback: player,
+      search: { search: mockSearch },
+      radio: { related: mockRelated },
+      resolver: { resolveAudioUrl: async track => track.url },
+      store: new JsonStore(mkdtempSync(join(tmpdir(), 'melo-engine-'))),
     });
   });
-
-  // ─── Play ────────────────────────────────────────────────────────────
 
   test('play() starts the track immediately', async () => {
     const track = makeTrack('A', 'Song A');
     await engine.play(track);
 
     expect(engine.currentTrack).toEqual(track);
-    expect(mockLoadTrackCalls).toContain(track.url);
+    expect(mockLoadCalls).toContain(track.url);
   });
 
   test('play() clears the queue before radio loads', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
-
-    const track = makeTrack('A');
-    await engine.play(track);
-
+    await engine.play(makeTrack('A'));
     await refilledPromise;
 
-    // After radio loads, queue should have radio tracks
     expect(engine.queue.length).toBeGreaterThan(0);
     expect(engine.queue.every(qi => qi.source === 'radio')).toBe(true);
   });
@@ -168,36 +126,26 @@ describe('PlaybackEngine', () => {
   });
 
   test('play() generates radio mix asynchronously', async () => {
-    const track = makeTrack('A');
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
-
-    await engine.play(track);
+    await engine.play(makeTrack('A'));
     await refilledPromise;
 
     expect(engine.queue.length).toBeGreaterThan(0);
     expect(engine.queue.every(qi => qi.source === 'radio')).toBe(true);
-    // The current track should not be in the queue
     expect(engine.queue.some(qi => qi.track.id === 'A')).toBe(false);
   });
 
-  // ─── Add to Queue ────────────────────────────────────────────────────
+  test('addToQueue() appends to the end', () => {
+    engine.addToQueue(makeTrack('B'));
+    engine.addToQueue(makeTrack('C'));
 
-  test('addToQueue() appends to the end', async () => {
-    const trackA = makeTrack('A');
-    const trackB = makeTrack('B');
-    const trackC = makeTrack('C');
-
-    engine.addToQueue(trackB);
-    engine.addToQueue(trackC);
-
-    expect(engine.queue.length).toBe(2);
-    expect(engine.queue[0]!.track.id).toBe('B');
-    expect(engine.queue[0]!.source).toBe('manual');
-    expect(engine.queue[1]!.track.id).toBe('C');
-    expect(engine.queue[1]!.source).toBe('manual');
+    const queue = engine.queue.snapshot();
+    expect(queue.length).toBe(2);
+    expect(queue[0]!.track.id).toBe('B');
+    expect(queue[0]!.source).toBe('manual');
+    expect(queue[1]!.track.id).toBe('C');
+    expect(queue[1]!.source).toBe('manual');
   });
-
-  // ─── Play Next ───────────────────────────────────────────────────────
 
   test('playNext() inserts at the front of the queue', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
@@ -205,12 +153,12 @@ describe('PlaybackEngine', () => {
     await refilledPromise;
 
     const radioCountBefore = engine.queue.length;
-
     engine.playNext(makeTrack('B', 'Song B'));
 
-    expect(engine.queue.length).toBe(radioCountBefore + 1);
-    expect(engine.queue[0]!.track.id).toBe('B');
-    expect(engine.queue[0]!.source).toBe('manual');
+    const queue = engine.queue.snapshot();
+    expect(queue.length).toBe(radioCountBefore + 1);
+    expect(queue[0]!.track.id).toBe('B');
+    expect(queue[0]!.source).toBe('manual');
   });
 
   test('playNext() puts track immediately after current', async () => {
@@ -224,8 +172,6 @@ describe('PlaybackEngine', () => {
     expect(engine.currentTrack!.id).toBe('B');
   });
 
-  // ─── Remove from Queue ───────────────────────────────────────────────
-
   test('removeFromQueue() removes at the correct index', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
     await engine.play(makeTrack('A'));
@@ -236,7 +182,6 @@ describe('PlaybackEngine', () => {
 
     const lenBefore = engine.queue.length;
     engine.removeFromQueue(0);
-
     expect(engine.queue.length).toBe(lenBefore - 1);
   });
 
@@ -248,12 +193,9 @@ describe('PlaybackEngine', () => {
     const lenBefore = engine.queue.length;
     engine.removeFromQueue(-1);
     expect(engine.queue.length).toBe(lenBefore);
-
     engine.removeFromQueue(999);
     expect(engine.queue.length).toBe(lenBefore);
   });
-
-  // ─── Clear Queue ─────────────────────────────────────────────────────
 
   test('clearQueue() empties the queue and stops radio', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
@@ -264,8 +206,6 @@ describe('PlaybackEngine', () => {
     engine.clearQueue();
     expect(engine.queue.length).toBe(0);
   });
-
-  // ─── Queue Ordering ──────────────────────────────────────────────────
 
   test('manual tracks are tagged correctly in the queue', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
@@ -288,7 +228,6 @@ describe('PlaybackEngine', () => {
     await refilledPromise;
 
     engine.playNext(makeTrack('Z'));
-
     await engine.playNextTrack();
     expect(engine.currentTrack!.id).toBe('Z');
 
@@ -308,11 +247,8 @@ describe('PlaybackEngine', () => {
     engine.addToQueue(makeTrack('X'));
     const manualCount = engine.queue.filter(qi => qi.source === 'manual').length;
     expect(manualCount).toBe(1);
-
     expect(engine.queue.length).toBe(radioCount + manualCount);
   });
-
-  // ─── Shuffle ─────────────────────────────────────────────────────────
 
   test('setShuffle(true) shuffles only radio tracks, not manual', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
@@ -322,17 +258,10 @@ describe('PlaybackEngine', () => {
     engine.addToQueue(makeTrack('X'));
     engine.addToQueue(makeTrack('Y'));
 
-    const manualBefore = engine.queue
-      .filter(qi => qi.source === 'manual')
-      .map(qi => qi.track.id);
-
+    const manualBefore = engine.queue.filter(qi => qi.source === 'manual').map(qi => qi.track.id);
     engine.setShuffle(true);
-
-    const manualAfter = engine.queue
-      .filter(qi => qi.source === 'manual')
-      .map(qi => qi.track.id);
-
-    expect(manualAfter!).toEqual(manualBefore);
+    const manualAfter = engine.queue.filter(qi => qi.source === 'manual').map(qi => qi.track.id);
+    expect(manualAfter).toEqual(manualBefore);
   });
 
   test('setShuffle(true) emits shuffle-changed event', async () => {
@@ -341,23 +270,11 @@ describe('PlaybackEngine', () => {
     await eventPromise;
   });
 
-  // ─── Radio Generation ────────────────────────────────────────────────
-
-  test('radio tracks are generated after play()', async () => {
-    const refilledPromise = waitForEvent(engine, 'queue-refilled');
-    await engine.play(makeTrack('A'));
-    await refilledPromise;
-
-    expect(engine.queue.length).toBeGreaterThan(0);
-    expect(engine.queue.every(qi => qi.source === 'radio')).toBe(true);
-  });
-
   test('radio tracks exclude the current track', async () => {
     const track = makeTrack('A');
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
     await engine.play(track);
     await refilledPromise;
-
     expect(engine.queue.some(qi => qi.track.id === track.id)).toBe(false);
   });
 
@@ -377,11 +294,8 @@ describe('PlaybackEngine', () => {
 
     const refilledPromise2 = waitForEvent(engine, 'queue-refilled', 5000);
     await refilledPromise2;
-
     expect(engine.queue.filter(qi => qi.source === 'radio').length).toBeGreaterThan(0);
   });
-
-  // ─── Stale Generation Protection ─────────────────────────────────────
 
   test('stale radio results are discarded when play() is called again', async () => {
     const event1 = waitForEvent(engine, 'queue-refilled');
@@ -395,8 +309,6 @@ describe('PlaybackEngine', () => {
     expect(engine.queue.every(qi => qi.source === 'radio')).toBe(true);
     expect(engine.queue.some(qi => qi.track.id.includes('mix-B'))).toBe(true);
   });
-
-  // ─── playPreviousTrack ──────────────────────────────────────────────
 
   test('playPreviousTrack() goes back to history', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
@@ -417,8 +329,6 @@ describe('PlaybackEngine', () => {
     expect(result).toBe(false);
   });
 
-  // ─── Repeat Modes ────────────────────────────────────────────────────
-
   test('repeat-one: end-file with reason eof does not advance', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
     await engine.play(makeTrack('A'));
@@ -427,18 +337,16 @@ describe('PlaybackEngine', () => {
 
     await engine.setRepeatMode('one');
     player.emit('end-file', { reason: 'eof' });
-
+    await new Promise(r => setTimeout(r, 20));
     expect(engine.currentTrack!.id).toBe('A');
   });
-
-  // ─── playNextTrack ──────────────────────────────────────────────────
 
   test('playNextTrack() advances to the next track', async () => {
     const refilledPromise = waitForEvent(engine, 'queue-refilled');
     await engine.play(makeTrack('A'));
     await refilledPromise;
 
-    const nextTrackId = engine.queue[0]!.track.id;
+    const nextTrackId = engine.queue.snapshot()[0]!.track.id;
     await engine.playNextTrack();
 
     expect(engine.currentTrack!.id).toBe(nextTrackId);
@@ -452,9 +360,7 @@ describe('PlaybackEngine', () => {
     expect(result).toBe(false);
   });
 
-  // ─── Favorites ──────────────────────────────────────────────────────
-
-  test('toggleFavorite() adds and removes favorites', async () => {
+  test('toggleFavorite() adds and removes favorites', () => {
     const track = makeTrack('A');
     const added = engine.toggleFavorite(track);
     expect(added).toBe(true);
@@ -464,8 +370,6 @@ describe('PlaybackEngine', () => {
     expect(removed).toBe(false);
     expect(engine.isFavorite('A')).toBe(false);
   });
-
-  // ─── Events ─────────────────────────────────────────────────────────
 
   test('track-changed event is emitted on play()', async () => {
     const track = makeTrack('A');
@@ -503,39 +407,49 @@ describe('PlaybackEngine', () => {
     await eventPromise;
   });
 
-  // ─── Queue metadata ─────────────────────────────────────────────────
-
-  test('queue items have correct source tags after play()', async () => {
-    const refilledPromise = waitForEvent(engine, 'queue-refilled');
-    await engine.play(makeTrack('A'));
-    await refilledPromise;
-
-    for (const qi of engine.queue) {
-      expect(qi.source).toBe('radio');
-    }
+  test('search empty query returns no results', async () => {
+    const tracks = await engine.searchTracks('   ');
+    expect(tracks).toEqual([]);
   });
 
-  test('queue items have correct source tags after addToQueue()', async () => {
-    const refilledPromise = waitForEvent(engine, 'queue-refilled');
-    await engine.play(makeTrack('A'));
-    await refilledPromise;
-
-    engine.addToQueue(makeTrack('X'));
-
-    const manualItems = engine.queue.filter(qi => qi.source === 'manual');
-    expect(manualItems.length).toBe(1);
-    expect(manualItems[0]!.track.id).toBe('X');
+  test('search failure does not crash the app', async () => {
+    const failing = new MeloApp({
+      playback: player,
+      search: { search: async () => { throw new Error('network down'); } },
+      radio: { related: async () => [] },
+      resolver: { resolveAudioUrl: async track => track.url },
+      store: new JsonStore(mkdtempSync(join(tmpdir(), 'melo-fail-'))),
+    });
+    expect(await failing.searchTracks('hello')).toEqual([]);
+    expect(failing.currentTrack).toBeNull();
   });
 
-  test('queue items have correct source tags after playNext()', async () => {
-    const refilledPromise = waitForEvent(engine, 'queue-refilled');
+  test('resolver failure falls back to watch URL', async () => {
+    const failing = new MeloApp({
+      playback: player,
+      search: { search: mockSearch },
+      radio: { related: async () => [] },
+      resolver: { resolveAudioUrl: async () => { throw new Error('no stream'); } },
+      store: new JsonStore(mkdtempSync(join(tmpdir(), 'melo-resolve-'))),
+    });
+    const track = makeTrack('A');
+    await failing.play(track);
+    expect(mockLoadCalls).toContain(track.url);
+  });
+
+  test('stop() clears current track and queue without crashing', async () => {
     await engine.play(makeTrack('A'));
-    await refilledPromise;
+    await engine.stop();
+    expect(engine.currentTrack).toBeNull();
+    expect(engine.queue.length).toBe(0);
+  });
 
-    engine.playNext(makeTrack('Y'));
-
-    const manualItems = engine.queue.filter(qi => qi.source === 'manual');
-    expect(manualItems.length).toBe(1);
-    expect(manualItems[0]!.track.id).toBe('Y');
+  test('snapshot is the authoritative state', async () => {
+    await engine.play(makeTrack('A'));
+    const snap = engine.snapshot();
+    expect(snap.currentTrack?.id).toBe('A');
+    expect(snap.volume).toBe(100);
+    expect(snap.repeat).toBe('off');
+    expect(Array.isArray(snap.queue)).toBe(true);
   });
 });

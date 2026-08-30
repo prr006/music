@@ -2,6 +2,8 @@ export interface Track {
   id: string;
   title: string;
   url: string;
+  artwork?: string;
+  album?: string;
   duration?: number;
   uploader?: string;
 }
