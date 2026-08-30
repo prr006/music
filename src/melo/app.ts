@@ -11,6 +11,7 @@ import { QueueService } from './queue/queue-service';
 import { YoutubeRadio } from './radio/youtube-radio';
 import { YoutubeSearch } from './search/youtube-search';
 import type {
+  AppSettings,
   AppState,
   MeloEvent,
   PlaybackDriver,
@@ -21,6 +22,7 @@ import type {
   SourceResolver,
   Track,
 } from './types';
+import { YoutubeLyrics, type LyricsProvider } from './lyrics/youtube-lyrics';
 import { YoutubeResolver } from './youtube/resolver';
 
 const RADIO_REFILL_THRESHOLD = 5;
@@ -35,6 +37,7 @@ export interface MeloDeps {
   favorites?: FavoritesService;
   history?: HistoryService;
   library?: LibraryService;
+  lyrics?: LyricsProvider;
 }
 
 export class MeloApp extends EventEmitter {
@@ -46,6 +49,7 @@ export class MeloApp extends EventEmitter {
   private readonly searchProvider: SearchProvider;
   private readonly radioProvider: RadioProvider;
   private readonly resolver: SourceResolver;
+  private readonly lyricsProvider: LyricsProvider;
 
   private current: Track | null = null;
   private shuffle = false;
@@ -69,6 +73,7 @@ export class MeloApp extends EventEmitter {
     this.favoritesService = deps.favorites ?? new FavoritesService(store);
     this.historyService = deps.history ?? new HistoryService(store);
     this.library = deps.library ?? new LibraryService(store);
+    this.lyricsProvider = deps.lyrics ?? new YoutubeLyrics();
     this.lastVolume = this.playback.snapshot.volume;
     this.lastMuted = this.playback.snapshot.muted;
     this.on('error', () => {});
@@ -109,6 +114,7 @@ export class MeloApp extends EventEmitter {
       repeat: p.repeatMode,
       playlists: this.library.playlists,
       downloads: this.library.downloads,
+      settings: this.library.settings,
     };
   }
 
@@ -178,6 +184,31 @@ export class MeloApp extends EventEmitter {
     this.queue.removeAt(index);
     this.emitQueue('queue-changed');
     if (this.current) this.maybeRefill(this.current.id);
+  }
+
+  moveQueue(from: number, to: number): boolean {
+    const moved = this.queue.move(from, to);
+    if (moved) this.emitQueue('queue-changed');
+    return moved;
+  }
+
+  async playFromQueue(index: number): Promise<boolean> {
+    if (index < 0 || index >= this.queue.length) return false;
+    const target = this.queue.snapshot()[index];
+    if (!target) return false;
+    for (let i = 0; i <= index; i++) this.queue.shift();
+    const loaded = await this.beginTrack(target.track, { recordHistory: true, clearQueue: false });
+    if (loaded) this.maybeRefill(target.track.id);
+    return true;
+  }
+
+  async lyricsFor(track: Track) {
+    return this.lyricsProvider.lyricsFor(track);
+  }
+
+  clearHistory(): void {
+    this.historyService.clear();
+    this.emitEvent({ type: 'history-changed', history: this.historyService.snapshot() });
   }
 
   clearQueue(): void {
@@ -259,15 +290,56 @@ export class MeloApp extends EventEmitter {
     return added;
   }
 
-  createPlaylist(name: string) { return this.library.createPlaylist(name); }
-  deletePlaylistById(id: string) { this.library.deletePlaylist(id); }
-  renamePlaylistById(id: string, name: string) { this.library.renamePlaylist(id, name); }
-  addTrackToPlaylist(id: string, track: Track) { return this.library.addToPlaylist(id, track); }
-  removeTrackFromPlaylist(id: string, index: number) { this.library.removeFromPlaylist(id, index); }
+  createPlaylist(name: string) {
+    const playlist = this.library.createPlaylist(name);
+    this.emitPlaylists();
+    return playlist;
+  }
+  deletePlaylistById(id: string) {
+    this.library.deletePlaylist(id);
+    this.emitPlaylists();
+  }
+  renamePlaylistById(id: string, name: string) {
+    this.library.renamePlaylist(id, name);
+    this.emitPlaylists();
+  }
+  addTrackToPlaylist(id: string, track: Track) {
+    const added = this.library.addToPlaylist(id, track);
+    if (added) this.emitPlaylists();
+    return added;
+  }
+  removeTrackFromPlaylist(id: string, index: number) {
+    this.library.removeFromPlaylist(id, index);
+    this.emitPlaylists();
+  }
+  reorderPlaylist(id: string, from: number, to: number) {
+    const moved = this.library.reorderPlaylist(id, from, to);
+    if (moved) this.emitPlaylists();
+    return moved;
+  }
+  async playPlaylist(id: string, index = 0): Promise<boolean> {
+    const playlist = this.library.playlistById(id);
+    if (!playlist || playlist.tracks.length === 0) return false;
+    const start = Math.max(0, Math.min(index, playlist.tracks.length - 1));
+    const track = playlist.tracks[start];
+    if (!track) return false;
+    await this.playPlaylistTrack(track, playlist.tracks.slice(start + 1));
+    return true;
+  }
+  saveQueueAsPlaylist(name: string) {
+    const playlist = this.createPlaylist(name);
+    if (this.current) this.library.addToPlaylist(playlist.id, this.current);
+    for (const item of this.queue.snapshot()) this.library.addToPlaylist(playlist.id, item.track);
+    this.emitPlaylists();
+    return this.library.playlistById(playlist.id) ?? playlist;
+  }
   isDownloaded(id: string) { return this.library.isDownloaded(id); }
   isDownloading(id: string) { return this.library.downloading.has(id); }
   loadSettings() { return this.library.settings; }
-  saveSettings(settings: { lang: string }) { this.library.saveSettings(settings); }
+  saveSettings(settings: Partial<AppSettings>) {
+    this.library.saveSettings(settings);
+    this.emitEvent({ type: 'settings-changed', settings: this.library.settings });
+  }
 
   toggleDownload(track: Track): void {
     this.library.toggleDownload(track, event => {
@@ -407,6 +479,7 @@ export class MeloApp extends EventEmitter {
   private async onEndFile(event: { reason: string }): Promise<void> {
     if (event.reason !== 'eof' || !this.current || this.advancing) return;
     if (this.playback.snapshot.repeatMode === 'one') return;
+    if (!this.library.settings.autoplay && this.playback.snapshot.repeatMode === 'off') return;
 
     this.advancing = true;
     try {
@@ -454,6 +527,10 @@ export class MeloApp extends EventEmitter {
       shuffle: this.shuffle,
       repeat: p.repeatMode,
     });
+  }
+
+  private emitPlaylists() {
+    this.emitEvent({ type: 'playlists-changed', playlists: this.library.playlists });
   }
 
   private emitQueue(type: 'queue-changed' | 'queue-refilled') {

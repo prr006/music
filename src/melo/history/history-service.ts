@@ -8,6 +8,11 @@ interface HistoryRecord {
   playedAt: number;
 }
 
+/**
+ * One store for recently played and Previous.
+ * Records are chronological (oldest → newest). Previous pops the newest.
+ * snapshot() is newest-first for Recently Played.
+ */
 export class HistoryService {
   private records: HistoryRecord[] = [];
   private sessionIds = new Set<string>();
@@ -17,8 +22,14 @@ export class HistoryService {
     this.records = this.normalize(raw);
   }
 
+  /** Recently played, newest first. Previous uses the same newest entry. */
   snapshot(): Track[] {
-    return this.records.map(record => record.track);
+    const tracks: Track[] = [];
+    for (let i = this.records.length - 1; i >= 0; i--) {
+      const record = this.records[i];
+      if (record) tracks.push(record.track);
+    }
+    return tracks;
   }
 
   record(track: Track): void {
@@ -48,6 +59,7 @@ export class HistoryService {
     this.store.write('history.json', this.records);
   }
 
+  /** Previous track: newest recently-played entry, removed from the list. */
   pop(): Track | undefined {
     const record = this.records.pop();
     if (!record) return undefined;
@@ -58,6 +70,13 @@ export class HistoryService {
 
   clearSession(): void {
     this.sessionIds.clear();
+  }
+
+  /** Clears recently played and the previous-track stack together. */
+  clear(): void {
+    this.records = [];
+    this.sessionIds.clear();
+    this.store.write('history.json', this.records);
   }
 
   private normalize(raw: HistoryRecord[] | Track[]): HistoryRecord[] {

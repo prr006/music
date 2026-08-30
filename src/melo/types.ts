@@ -32,6 +32,15 @@ export interface PlaybackSnapshot {
   repeatMode: RepeatMode;
 }
 
+export interface AppSettings {
+  lang: string;
+  autoplay: boolean;
+  closeBehavior: 'quit' | 'tray';
+  startMinimized: boolean;
+  minimizeToTray: boolean;
+  miniAlwaysOnTop: boolean;
+}
+
 export interface AppState {
   currentTrack: Track | null;
   queue: QueueItem[];
@@ -46,6 +55,7 @@ export interface AppState {
   repeat: RepeatMode;
   playlists: Playlist[];
   downloads: Track[];
+  settings: AppSettings;
 }
 
 export type MeloEvent =
@@ -57,6 +67,9 @@ export type MeloEvent =
   | { type: 'shuffle-changed'; enabled: boolean }
   | { type: 'repeat-changed'; mode: RepeatMode }
   | { type: 'favorites-changed'; favorites: Track[] }
+  | { type: 'playlists-changed'; playlists: Playlist[] }
+  | { type: 'history-changed'; history: Track[] }
+  | { type: 'settings-changed'; settings: AppSettings }
   | { type: 'download-started'; trackId: string }
   | { type: 'download-completed'; track: Track }
   | { type: 'download-removed'; trackId: string }

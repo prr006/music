@@ -46,6 +46,14 @@
       {
         "from": "resources/backend-headless.exe",
         "to": "backend-headless.exe"
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "resources/tray.png",
+        "to": "tray.png"
       }
     ]
   }

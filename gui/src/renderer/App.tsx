@@ -13,10 +13,13 @@ import { RadioView } from './components/RadioView';
 import { SearchOverlay } from './components/SearchOverlay';
 import { QueuePanel } from './components/QueuePanel';
 import { MiniPlayer } from './components/MiniPlayer';
+import { CompactMini } from './components/CompactMini';
 import { SettingsPopover } from './components/SettingsPopover';
 import { artworkFor } from './lib/media';
 import { readStoredTheme, writeStoredTheme } from './lib/theme-storage';
 import { readSidebarExpanded, writeSidebarExpanded } from './lib/sidebar-storage';
+import { isSpaceReservedTarget, isTypingTarget, matchShortcut } from './lib/hotkeys';
+import { syncMediaSession } from './lib/media-session';
 
 function AmbientBackdrop({ src }: { src: string }) {
   const [shown, setShown] = useState(src);
@@ -63,14 +66,20 @@ function applyTheme(t: Theme) {
   document.documentElement.setAttribute('data-theme', resolveTheme(t));
 }
 
+function isMiniWindow() {
+  return typeof window !== 'undefined' && window.location.hash === '#mini';
+}
+
 export function App() {
   const b = useBackend();
   const { state } = b;
+  const miniWindow = isMiniWindow();
 
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme(localStorage));
   const [view, setView] = useState<View>('home');
   const [searchOpen, setSearchOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<'queue' | 'lyrics'>('queue');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(() => readSidebarExpanded(localStorage));
 
@@ -91,6 +100,25 @@ export function App() {
     return () => mq.removeEventListener('change', h);
   }, [theme]);
 
+  useEffect(() => {
+    void window.api.setCloseBehavior?.(state.settings.closeBehavior);
+  }, [state.settings.closeBehavior]);
+
+  useEffect(() => {
+    void window.api.setMinimizeToTray?.(state.settings.minimizeToTray);
+  }, [state.settings.minimizeToTray]);
+
+  useEffect(() => {
+    void window.api.setMiniAlwaysOnTop?.(state.settings.miniAlwaysOnTop);
+  }, [state.settings.miniAlwaysOnTop]);
+
+  const didStartMin = useRef(false);
+  useEffect(() => {
+    if (didStartMin.current || !state.settings.startMinimized) return;
+    didStartMin.current = true;
+    window.api.windowMinimize?.();
+  }, [state.settings.startMinimized]);
+
   const cycleTheme = useCallback(() => {
     setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light');
   }, []);
@@ -98,20 +126,72 @@ export function App() {
   const openSearch = useCallback(() => setSearchOpen(true), []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
 
+  const toggleQueue = useCallback(() => {
+    setRightTab('queue');
+    setQueueOpen(open => !open);
+  }, []);
+
+  useEffect(() => {
+    if (!queueOpen || rightTab !== 'lyrics' || !state.currentTrack) return;
+    void b.fetchLyrics(state.currentTrack);
+  }, [queueOpen, rightTab, state.currentTrack?.id]);
+
+  useEffect(() => {
+    return syncMediaSession(state.currentTrack, state.playing, {
+      play: () => { if (!state.playing) void b.togglePause(); },
+      pause: () => { if (state.playing) void b.togglePause(); },
+      next: () => { void b.nextTrack(); },
+      previous: () => { void b.previousTrack(); },
+      seek: seconds => { void b.seek(seconds); },
+    });
+  }, [state.currentTrack, state.playing, b.togglePause, b.nextTrack, b.previousTrack, b.seek]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setSearchOpen(true);
+        return;
+      }
+      if (isTypingTarget(e.target) || searchOpen) return;
+      const action = matchShortcut(e);
+      if (!action) return;
+      if (action === 'toggle' && isSpaceReservedTarget(e.target)) return;
+      e.preventDefault();
+      switch (action) {
+        case 'toggle': void b.togglePause(); break;
+        case 'seekBack': void b.seek(-10); break;
+        case 'seekForward': void b.seek(10); break;
+        case 'previous': void b.previousTrack(); break;
+        case 'next': void b.nextTrack(); break;
+        case 'volumeUp': void b.adjustVolume(5); break;
+        case 'volumeDown': void b.adjustVolume(-5); break;
+        case 'mute': void b.toggleMute(); break;
+        case 'search': setSearchOpen(true); break;
+        case 'queue': toggleQueue(); break;
+        case 'favorite': void b.toggleFavorite(); break;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [b, searchOpen, toggleQueue]);
 
   const track = state.currentTrack;
   const showMini = view !== 'home' && !!track;
   const ambient = track ? artworkFor(track, true) : '';
+
+  if (miniWindow) {
+    return (
+      <CompactMini
+        state={state}
+        onTogglePause={b.togglePause}
+        onNext={b.nextTrack}
+        onPrevious={b.previousTrack}
+        onFavorite={() => void b.toggleFavorite()}
+        onShowMain={() => window.api.showMainWindow?.()}
+      />
+    );
+  }
 
   return (
     <div className={`app${showMini ? ' has-mini' : ''}${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
@@ -164,7 +244,7 @@ export function App() {
                     onCycleRepeat={b.cycleRepeat}
                     onToggleFavorite={b.toggleFavorite}
                     onAddToQueue={b.addToQueue}
-                    onToggleQueue={() => setQueueOpen(o => !o)}
+                    onToggleQueue={toggleQueue}
                     onCycleTheme={cycleTheme}
                   />
                 </div>
@@ -176,6 +256,15 @@ export function App() {
               onPlay={b.play}
               onToggleFavorite={b.toggleFavorite}
               onOpenSearch={openSearch}
+              onCreatePlaylist={name => void b.createPlaylist(name)}
+              onDeletePlaylist={id => void b.deletePlaylist(id)}
+              onRenamePlaylist={(id, name) => void b.renamePlaylist(id, name)}
+              onPlayPlaylist={(id, index) => void b.playPlaylist(id, index)}
+              onRemoveFromPlaylist={(id, index) => void b.removeFromPlaylist(id, index)}
+              onReorderPlaylist={(id, from, to) => void b.reorderPlaylist(id, from, to)}
+              onAddToQueue={b.addToQueue}
+              onPlayNext={b.playNext}
+              onClearHistory={() => void b.clearHistory()}
             />
           ) : view === 'favorites' ? (
             <FavoritesView
@@ -198,19 +287,27 @@ export function App() {
           )}
           <QueuePanel
             open={queueOpen}
+            tab={rightTab}
+            onTab={setRightTab}
             state={state}
             onClose={() => setQueueOpen(false)}
-            onPlay={b.play}
+            onPlayIndex={b.playFromQueue}
             onClear={b.clearQueue}
             onRemove={b.removeFromQueue}
+            onMove={b.moveQueue}
+            onSavePlaylist={name => void b.saveQueueAsPlaylist(name)}
+            onPlayNext={b.playNext}
           />
 
           {settingsOpen && (
             <SettingsPopover
               theme={theme}
               connectionState={state.connectionState}
+              settings={state.settings}
               onTheme={setTheme}
+              onSettings={patch => void b.saveSettings(patch)}
               onRetry={b.retryBackend}
+              onToggleMini={() => void window.api.toggleMiniPlayer?.()}
             />
           )}
         </div>
@@ -234,10 +331,12 @@ export function App() {
           currentTrack={state.currentTrack}
           loadingTrack={state.loadingTrack}
           recent={state.history}
+          playlists={state.playlists}
           onSearch={b.search}
           onPlay={b.play}
           onAddToQueue={b.addToQueue}
           onPlayNext={b.playNext}
+          onPlayPlaylist={id => void b.playPlaylist(id)}
           onClose={closeSearch}
         />
       )}

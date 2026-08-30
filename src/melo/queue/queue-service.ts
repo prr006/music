@@ -69,6 +69,15 @@ export class QueueService {
     return this.items.splice(index, 1)[0];
   }
 
+  move(from: number, to: number): boolean {
+    if (from < 0 || to < 0 || from >= this.items.length || to >= this.items.length) return false;
+    if (from === to) return true;
+    const [item] = this.items.splice(from, 1);
+    if (!item) return false;
+    this.items.splice(to, 0, item);
+    return true;
+  }
+
   shift(): QueueItem | undefined {
     return this.items.shift();
   }

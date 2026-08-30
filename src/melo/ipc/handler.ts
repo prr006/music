@@ -147,6 +147,94 @@ export function createControlHandler(app: MeloApp, onQuit: () => void) {
           app.removeFromQueue(command.index);
           return { ok: true, message: 'Removed from queue.' };
         }
+        case 'move-queue': {
+          if (!Number.isInteger(command.from) || !Number.isInteger(command.to)) {
+            return { ok: false, message: 'move-queue requires from and to indexes.' };
+          }
+          if (!app.moveQueue(command.from, command.to)) return { ok: false, message: 'Could not move queue item.' };
+          return { ok: true, message: 'Queue updated.' };
+        }
+        case 'play-from-queue': {
+          if (!Number.isInteger(command.index)) return { ok: false, message: 'play-from-queue requires an index.' };
+          if (!await app.playFromQueue(command.index)) return { ok: false, message: 'That queue item is gone.' };
+          return { ok: true, message: `Playing: ${app.currentTrack!.title}` };
+        }
+        case 'get-lyrics': {
+          const track = command.track ?? app.currentTrack;
+          if (!track) return { ok: true, message: 'No lyrics.', data: { trackId: '', lines: [] } };
+          const lyrics = await app.lyricsFor(track);
+          return {
+            ok: true,
+            message: lyrics.lines.length > 0 ? 'Lyrics ready.' : 'No lyrics found.',
+            data: lyrics,
+          };
+        }
+        case 'get-playlists':
+          return { ok: true, message: `${app.playlists.length} playlists.`, data: app.playlists };
+        case 'create-playlist': {
+          const name = command.name?.trim();
+          if (!name) return { ok: false, message: 'create-playlist requires a name.' };
+          const playlist = app.createPlaylist(name);
+          return { ok: true, message: `Created playlist: ${playlist.name}`, data: playlist };
+        }
+        case 'delete-playlist': {
+          if (!command.id) return { ok: false, message: 'delete-playlist requires an id.' };
+          app.deletePlaylistById(command.id);
+          return { ok: true, message: 'Playlist deleted.' };
+        }
+        case 'rename-playlist': {
+          if (!command.id || !command.name?.trim()) return { ok: false, message: 'rename-playlist requires id and name.' };
+          app.renamePlaylistById(command.id, command.name);
+          return { ok: true, message: 'Playlist renamed.' };
+        }
+        case 'add-to-playlist': {
+          if (!command.id || !command.track?.id) return { ok: false, message: 'add-to-playlist requires a playlist and track.' };
+          const added = app.addTrackToPlaylist(command.id, command.track);
+          return { ok: added, message: added ? 'Added to playlist.' : 'Already in playlist or missing playlist.' };
+        }
+        case 'remove-from-playlist': {
+          if (!command.id || !Number.isInteger(command.index)) return { ok: false, message: 'remove-from-playlist requires id and index.' };
+          app.removeTrackFromPlaylist(command.id, command.index);
+          return { ok: true, message: 'Removed from playlist.' };
+        }
+        case 'reorder-playlist': {
+          if (!command.id || !Number.isInteger(command.from) || !Number.isInteger(command.to)) {
+            return { ok: false, message: 'reorder-playlist requires id, from, and to.' };
+          }
+          if (!app.reorderPlaylist(command.id, command.from, command.to)) return { ok: false, message: 'Could not reorder playlist.' };
+          return { ok: true, message: 'Playlist updated.' };
+        }
+        case 'play-playlist': {
+          if (!command.id) return { ok: false, message: 'play-playlist requires an id.' };
+          if (!await app.playPlaylist(command.id, command.index ?? 0)) return { ok: false, message: 'Playlist is empty.' };
+          return { ok: true, message: `Playing: ${app.currentTrack!.title}` };
+        }
+        case 'save-queue-as-playlist': {
+          const name = command.name?.trim();
+          if (!name) return { ok: false, message: 'save-queue-as-playlist requires a name.' };
+          const playlist = app.saveQueueAsPlaylist(name);
+          return { ok: true, message: `Saved playlist: ${playlist.name}`, data: playlist };
+        }
+        case 'clear-history':
+          app.clearHistory();
+          return { ok: true, message: 'History cleared.' };
+        case 'get-settings':
+          return { ok: true, message: 'Settings.', data: app.loadSettings() };
+        case 'save-settings': {
+          if (!command.settings || typeof command.settings !== 'object') {
+            return { ok: false, message: 'save-settings requires a settings object.' };
+          }
+          const raw = command.settings;
+          app.saveSettings({
+            lang: typeof raw.lang === 'string' ? raw.lang : undefined,
+            autoplay: typeof raw.autoplay === 'boolean' ? raw.autoplay : undefined,
+            closeBehavior: raw.closeBehavior === 'tray' || raw.closeBehavior === 'quit' ? raw.closeBehavior : undefined,
+            startMinimized: typeof raw.startMinimized === 'boolean' ? raw.startMinimized : undefined,
+            minimizeToTray: typeof raw.minimizeToTray === 'boolean' ? raw.minimizeToTray : undefined,
+            miniAlwaysOnTop: typeof raw.miniAlwaysOnTop === 'boolean' ? raw.miniAlwaysOnTop : undefined,
+          });
+          return { ok: true, message: 'Settings saved.', data: app.loadSettings() };
+        }
         case 'get-queue': {
           const queue = app.queue.snapshot();
           return {

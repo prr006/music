@@ -26,7 +26,8 @@ describe('config persistence', () => {
     const store = new JsonStore(configRoot);
     const library = new LibraryService(store);
     library.saveSettings({ lang: 'az' });
-    expect(new LibraryService(store).settings).toEqual({ lang: 'az' });
+    expect(new LibraryService(store).settings.lang).toBe('az');
+    expect(new LibraryService(store).settings.autoplay).toBe(true);
   });
 
   test('favorites are available immediately after saving', () => {

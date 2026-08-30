@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Track, QueueItem, RepeatMode, ControlCommand, ControlResponse } from '../../shared/types';
+import type { Track, QueueItem, RepeatMode, ControlCommand, ControlResponse, Playlist, AppSettings, LyricsResult } from '../../shared/types';
+
+const DEFAULT_SETTINGS: AppSettings = {
+  lang: 'en',
+  autoplay: true,
+  closeBehavior: 'quit',
+  startMinimized: false,
+  minimizeToTray: false,
+  miniAlwaysOnTop: true,
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -24,6 +33,11 @@ export interface PlayerState {
   searchResults: Track[];
   searching: boolean;
   error: string | null;
+  playlists: Playlist[];
+  downloads: Track[];
+  settings: AppSettings;
+  lyrics: LyricsResult | null;
+  lyricsLoading: boolean;
 }
 
 declare global {
@@ -42,6 +56,11 @@ declare global {
       windowClose?(): void;
       windowIsMaximized?(): Promise<boolean>;
       onWindowMaximized?(callback: (maximized: boolean) => void): () => void;
+      toggleMiniPlayer?(): Promise<boolean>;
+      setMiniAlwaysOnTop?(value: boolean): Promise<void>;
+      setCloseBehavior?(value: 'quit' | 'tray'): Promise<void>;
+      setMinimizeToTray?(value: boolean): Promise<void>;
+      showMainWindow?(): void;
     };
   }
 }
@@ -69,6 +88,11 @@ export function useBackend() {
     searchResults: [],
     searching: false,
     error: null,
+    playlists: [],
+    downloads: [],
+    settings: DEFAULT_SETTINGS,
+    lyrics: null,
+    lyricsLoading: false,
   });
 
   const sRef = useRef(s);
@@ -195,6 +219,21 @@ export function useBackend() {
             set(p => ({ ...p, favorites: e.favorites as Track[] }));
           }
           break;
+        case 'playlists-changed':
+          if (Array.isArray(e.playlists)) {
+            set(p => ({ ...p, playlists: e.playlists as Playlist[] }));
+          }
+          break;
+        case 'history-changed':
+          if (Array.isArray(e.history)) {
+            set(p => ({ ...p, history: e.history as Track[] }));
+          }
+          break;
+        case 'settings-changed':
+          if (e.settings && typeof e.settings === 'object') {
+            set(p => ({ ...p, settings: { ...DEFAULT_SETTINGS, ...(e.settings as AppSettings) } }));
+          }
+          break;
       }
     });
     return unsub;
@@ -238,6 +277,11 @@ export function useBackend() {
         duration: (d.duration as number) ?? 0,
         shuffle: (d.shuffle as boolean) ?? false,
         repeat: (d.repeat as RepeatMode) ?? 'off',
+        playlists: Array.isArray(d.playlists) ? (d.playlists as Playlist[]) : p.playlists,
+        downloads: Array.isArray(d.downloads) ? (d.downloads as Track[]) : p.downloads,
+        settings: d.settings && typeof d.settings === 'object'
+          ? { ...DEFAULT_SETTINGS, ...(d.settings as AppSettings) }
+          : p.settings,
       }));
     }
   }, [send]);
@@ -255,7 +299,7 @@ export function useBackend() {
     if (!query.trim()) return;
     set(p => ({ ...p, searching: true, error: null }));
     try {
-      const r = await send({ type: 'search', query, limit: 8 });
+      const r = await send({ type: 'search', query, limit: 20 });
       set(p => ({
         ...p,
         searchResults: (r.ok && r.data) ? (r.data as Track[]) : [],
@@ -398,6 +442,89 @@ export function useBackend() {
     fetchQueue();
   }, [send, fetchQueue]);
 
+  const moveQueue = useCallback(async (from: number, to: number) => {
+    await send({ type: 'move-queue', from, to });
+    fetchQueue();
+  }, [send, fetchQueue]);
+
+  const playFromQueue = useCallback(async (index: number) => {
+    const track = sRef.current.queue[index]?.track;
+    if (track) {
+      set(p => ({
+        ...p,
+        loading: true,
+        loadingTrack: track,
+        currentTrack: track,
+        playing: false,
+        position: 0,
+      }));
+    }
+    const r = await send({ type: 'play-from-queue', index });
+    if (!r.ok) set(p => ({ ...p, loading: false, loadingTrack: null }));
+  }, [send]);
+
+  const fetchLyrics = useCallback(async (track?: Track) => {
+    const target = track ?? sRef.current.currentTrack;
+    if (!target) {
+      set(p => ({ ...p, lyrics: null, lyricsLoading: false }));
+      return;
+    }
+    set(p => ({ ...p, lyricsLoading: true }));
+    const r = await send({ type: 'get-lyrics', track: target });
+    const data = r.ok ? (r.data as LyricsResult) : { trackId: target.id, lines: [] };
+    set(p => {
+      if (p.currentTrack?.id !== target.id) return p;
+      return { ...p, lyricsLoading: false, lyrics: data };
+    });
+  }, [send]);
+
+  const createPlaylist = useCallback(async (name: string) => {
+    const r = await send({ type: 'create-playlist', name });
+    return r.ok ? (r.data as Playlist) : null;
+  }, [send]);
+
+  const deletePlaylist = useCallback(async (id: string) => {
+    await send({ type: 'delete-playlist', id });
+  }, [send]);
+
+  const renamePlaylist = useCallback(async (id: string, name: string) => {
+    await send({ type: 'rename-playlist', id, name });
+  }, [send]);
+
+  const addToPlaylist = useCallback(async (id: string, track: Track) => {
+    await send({ type: 'add-to-playlist', id, track });
+  }, [send]);
+
+  const removeFromPlaylist = useCallback(async (id: string, index: number) => {
+    await send({ type: 'remove-from-playlist', id, index });
+  }, [send]);
+
+  const reorderPlaylist = useCallback(async (id: string, from: number, to: number) => {
+    await send({ type: 'reorder-playlist', id, from, to });
+  }, [send]);
+
+  const playPlaylist = useCallback(async (id: string, index = 0) => {
+    await send({ type: 'play-playlist', id, index });
+  }, [send]);
+
+  const saveQueueAsPlaylist = useCallback(async (name: string) => {
+    await send({ type: 'save-queue-as-playlist', name });
+  }, [send]);
+
+  const clearHistory = useCallback(async () => {
+    await send({ type: 'clear-history' });
+  }, [send]);
+
+  const saveSettings = useCallback(async (settings: Partial<AppSettings>) => {
+    set(p => ({ ...p, settings: { ...p.settings, ...settings } }));
+    await send({ type: 'save-settings', settings });
+  }, [send]);
+
+  const adjustVolume = useCallback(async (delta: number) => {
+    set(p => ({ ...p, volume: Math.max(0, Math.min(100, p.volume + delta)) }));
+    await send({ type: 'volume', value: delta, relative: true });
+  }, [send]);
+
   const retryBackend = useCallback(async () => {
     set(p => ({ ...p, connectionState: 'starting' as ConnectionState }));
     await window.api.retryBackend();
@@ -409,7 +536,10 @@ export function useBackend() {
     togglePause, nextTrack, previousTrack,
     seek, seekTo, setVolume, toggleMute,
     toggleShuffle, cycleRepeat, toggleFavorite,
-    removeFromQueue, clearQueue,
+    removeFromQueue, clearQueue, moveQueue, playFromQueue,
+    fetchLyrics, createPlaylist, deletePlaylist, renamePlaylist,
+    addToPlaylist, removeFromPlaylist, reorderPlaylist, playPlaylist,
+    saveQueueAsPlaylist, clearHistory, saveSettings, adjustVolume,
     retryBackend,
   };
 }
