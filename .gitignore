@@ -26,5 +26,9 @@ gui/out/
 # Compiled backend binary
 gui/resources/*.exe
 
+# Fetched desktop runtime (mpv / yt-dlp). Keep the folder placeholder.
+gui/resources/runtime/**
+!gui/resources/runtime/.gitkeep
+
 # Windows reserved device
 nul/

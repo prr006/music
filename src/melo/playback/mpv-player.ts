@@ -1,9 +1,11 @@
 import { createConnection, type Socket } from 'net';
 import { EventEmitter } from 'events';
 import { unlinkSync } from 'fs';
-import { getMpvIpcPath, isWindows, resolveCommand } from '../../platform';
+import { delimiter, dirname } from 'path';
+import { getMpvIpcPath, isWindows } from '../../platform';
 import { getMpvPrivacyArgs } from '../../privacy';
 import { log, logError } from '../log';
+import { requireRuntimeBinary, resolveRuntimeBinary } from '../runtime/binaries';
 import type { PlaybackDriver, PlaybackSnapshot, RepeatMode } from '../types';
 
 interface Pending {
@@ -34,13 +36,23 @@ export class MpvPlayer extends EventEmitter implements PlaybackDriver {
 
   async start(): Promise<void> {
     this.cleanupSocketFile();
-    const mpv = resolveCommand('mpv') ?? 'mpv';
+    const mpv = requireRuntimeBinary('mpv');
+    const ytdlp = resolveRuntimeBinary('yt-dlp');
+    const args = [...getMpvPrivacyArgs()];
+    if (ytdlp) args.push(`--script-opts=ytdl_hook-ytdl_path=${ytdlp.replace(/\\/g, '/')}`);
+    args.push('--no-video', '--no-terminal', `--input-ipc-server=${this.ipcPath}`, '--idle=yes');
     log('playback', `starting mpv ipc=${this.ipcPath}`);
 
-    this.proc = Bun.spawn(
-      [mpv, ...getMpvPrivacyArgs(), '--no-video', '--no-terminal', `--input-ipc-server=${this.ipcPath}`, '--idle=yes'],
-      { stderr: 'pipe', stdout: 'ignore' },
-    );
+    const env = { ...process.env };
+    if (isWindows) {
+      env.PATH = `${dirname(mpv)}${delimiter}${env.PATH || env.Path || ''}`;
+    }
+
+    this.proc = Bun.spawn([mpv, ...args], {
+      stderr: 'pipe',
+      stdout: 'ignore',
+      env,
+    });
     if (this.proc.stderr && typeof this.proc.stderr !== 'number') {
       void this.captureStderr(this.proc.stderr);
     }

@@ -1,7 +1,8 @@
 import { join } from 'path';
 import { unlinkSync } from 'fs';
-import { getMusicDir, resolveCommand } from '../../platform';
+import { getMusicDir } from '../../platform';
 import { getYtdlpPrivacyArgs } from '../../privacy';
+import { requireRuntimeBinary } from '../runtime/binaries';
 import type { JsonStore } from '../persistence/json-store';
 import type { AppSettings, Playlist, Track } from '../types';
 import { log, logError } from '../log';
@@ -151,7 +152,15 @@ export class LibraryService {
     this.downloading.add(track.id);
     onEvent('started');
 
-    const ytdlp = resolveCommand('yt-dlp') ?? 'yt-dlp';
+    let ytdlp: string;
+    try {
+      ytdlp = requireRuntimeBinary('yt-dlp');
+    } catch (error) {
+      this.downloading.delete(track.id);
+      logError('app', error instanceof Error ? error.message : String(error));
+      onEvent('removed');
+      return;
+    }
     Bun.spawn([
       ytdlp,
       ...getYtdlpPrivacyArgs(),

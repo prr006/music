@@ -1,27 +1,42 @@
 import { commandExists, isWindows, refreshExecutablePath } from './platform';
+import {
+  PACKAGED_MISSING_MESSAGE,
+  getMissingRuntimeBinaries,
+  isPackagedRuntime,
+  type RuntimeName,
+  type RuntimeResolveOptions,
+} from './melo/runtime/binaries';
 
-type DependencyName = 'mpv' | 'yt-dlp';
+type DependencyName = RuntimeName;
 
 const RUNTIME_DEPS: DependencyName[] = ['mpv', 'yt-dlp'];
 
-export async function ensureRuntimeDependencies() {
+export async function ensureRuntimeDependencies(options: RuntimeResolveOptions & {
+  install?: (dep: DependencyName) => Promise<void>;
+} = {}) {
+  const env = options.env ?? process.env;
   refreshExecutablePath();
 
-  let missing = RUNTIME_DEPS.filter(dep => !commandExists(dep));
+  let missing = getMissingRuntimeBinaries(options);
   if (missing.length === 0) return;
 
-  if (process.env.MELO_SKIP_AUTO_INSTALL === '1') {
+  if (isPackagedRuntime(env)) {
+    throw new Error(PACKAGED_MISSING_MESSAGE);
+  }
+
+  if (env.MELO_SKIP_AUTO_INSTALL === '1') {
     throw new Error(formatMissingDependencies(missing));
   }
 
   process.stdout.write(`\nSetting up missing dependencies: ${missing.join(', ')}\n`);
 
   for (const dep of missing) {
-    await installDependency(dep);
+    if (options.install) await options.install(dep);
+    else await installDependency(dep);
     refreshExecutablePath();
   }
 
-  missing = RUNTIME_DEPS.filter(dep => !commandExists(dep));
+  missing = getMissingRuntimeBinaries(options);
   if (missing.length > 0) {
     throw new Error(formatMissingDependencies(missing));
   }

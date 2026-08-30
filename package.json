@@ -33,7 +33,8 @@
     "check:packaging": "bun test tests/packaging.test.ts",
     "check:tarballs": "bun scripts/check-tarballs.ts",
     "check:npm-install": "bun scripts/check-npm-install.ts",
-    "check:control-cli": "bun scripts/check-control-cli.ts"
+    "check:control-cli": "bun scripts/check-control-cli.ts",
+    "fetch:runtime": "bun scripts/fetch-desktop-runtime.ts"
   },
   "optionalDependencies": {
     "melo-darwin-arm64": "0.3.7",

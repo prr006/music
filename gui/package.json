@@ -10,8 +10,9 @@
     "build:backend": "cd .. && bun build --compile --target=bun-windows-x64 src/backend-headless.ts --outfile=gui/resources/backend-headless.exe",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "package": "npm run build:backend && electron-vite build && electron-builder --win --config",
-    "package:dir": "npm run build:backend && electron-vite build && electron-builder --win --dir --config"
+    "fetch:runtime": "cd .. && bun scripts/fetch-desktop-runtime.ts win32-x64",
+    "package": "npm run fetch:runtime && npm run build:backend && electron-vite build && electron-builder --win --config",
+    "package:dir": "npm run fetch:runtime && npm run build:backend && electron-vite build && electron-builder --win --dir --config"
   },
   "dependencies": {
     "lucide-react": "^1.37.0",
@@ -48,12 +49,24 @@
         "to": "backend-headless.exe"
       },
       {
+        "from": "resources/runtime",
+        "to": "runtime"
+      },
+      {
         "from": "resources/icon.png",
         "to": "icon.png"
       },
       {
         "from": "resources/tray.png",
         "to": "tray.png"
+      },
+      {
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "resources/licenses",
+        "to": "licenses"
       }
     ]
   }

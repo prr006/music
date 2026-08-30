@@ -1,6 +1,6 @@
-import { resolveCommand } from '../../platform';
 import { getYtdlpPrivacyArgs } from '../../privacy';
 import { logError } from '../log';
+import { requireRuntimeBinary } from '../runtime/binaries';
 
 export class YtdlpError extends Error {
   constructor(message: string) {
@@ -10,7 +10,7 @@ export class YtdlpError extends Error {
 }
 
 export async function runYtdlp(args: string[]): Promise<string> {
-  const ytdlp = resolveCommand('yt-dlp') ?? 'yt-dlp';
+  const ytdlp = requireRuntimeBinary('yt-dlp');
   const proc = Bun.spawn([ytdlp, ...getYtdlpPrivacyArgs(), ...args], {
     stdout: 'pipe',
     stderr: 'pipe',

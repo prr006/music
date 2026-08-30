@@ -1,0 +1,3 @@
+yt-dlp is released under the Unlicense.
+
+https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE
