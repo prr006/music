@@ -277,8 +277,23 @@ impl Mpv {
         self.state.time_pos = 0.0;
         self.state.duration = 0.0;
         self.state.title.clear();
-        let command = json!(["loadfile", url, "replace"]).as_array().cloned().unwrap_or_default();
-        self.request(command).await.map(|_| ())
+        // `loadfile` is fire-and-forget. mpv queues the load and the actual
+        // outcome arrives as `file-loaded` (success) or
+        // `end-file reason=error` (failure) on the event stream. Waiting for
+        // the IPC reply would make a delayed or lost ack abort an advance
+        // even though mpv is in fact loading the track.
+        let id = NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+        let mut stream = connect_mpv(&self.pipe)
+            .await
+            .map_err(|e| format!("connect mpv: {e}"))?;
+        let payload = json!({
+            "command": [ "loadfile", url, "replace" ],
+            "request_id": id,
+            "async": true,
+        });
+        write_line(&mut stream, &payload)
+            .await
+            .map_err(|e| format!("write mpv command: {e}"))
     }
 
     pub async fn toggle_pause(&mut self) -> Result<bool, String> {

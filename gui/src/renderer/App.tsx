@@ -241,6 +241,7 @@ export function App() {
                   )}
                   <NowPlayingPanel
                     state={state}
+                    getPosition={b.getPosition}
                     theme={theme}
                     queueOpen={queueOpen}
                     lyricsOpen={queueOpen && rightTab === 'lyrics'}
@@ -301,6 +302,7 @@ export function App() {
             tab={rightTab}
             onTab={setRightTab}
             state={state}
+            getPosition={b.getPosition}
             onClose={() => setQueueOpen(false)}
             onPlayIndex={b.playFromQueue}
             onClear={b.clearQueue}
@@ -327,6 +329,7 @@ export function App() {
       {showMini && (
         <MiniPlayer
           state={state}
+          getPosition={b.getPosition}
           onTogglePause={b.togglePause}
           onNext={b.nextTrack}
           onPrevious={b.previousTrack}

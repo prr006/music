@@ -407,8 +407,20 @@ fn parse_response(dump: &Value) -> Option<Vec<LyricsLine>> {
 }
 
 fn parse_synced_lyrics(input: &str) -> Vec<LyricsLine> {
-    let mut lines = Vec::new();
+    // LRC files may carry a global signed offset tag — `[offset:1200]`,
+    // `[offset:-1200]` (milliseconds) — that shifts every timestamp in the
+    // file. Parse it once, strip it from the text, and apply it to all lines.
+    let mut offset_ms = 0.0;
+    let mut cleaned = Vec::new();
     for raw in input.lines() {
+        let (line, off) = strip_offset_tag(raw);
+        if let Some(o) = off {
+            offset_ms = o;
+        }
+        cleaned.push(line);
+    }
+    let mut lines = Vec::new();
+    for raw in &cleaned {
         let raw = raw.trim();
         if raw.is_empty() {
             continue;
@@ -426,11 +438,36 @@ fn parse_synced_lyrics(input: &str) -> Vec<LyricsLine> {
         for start_ms in timestamps {
             lines.push(LyricsLine {
                 text: text.to_string(),
-                start_ms: Some(start_ms),
+                start_ms: Some(start_ms + offset_ms),
             });
         }
     }
     lines
+}
+
+/// Remove every `[offset:±ms]` tag from a line. Returns the cleaned line and
+/// the (last) offset in milliseconds, if the line carried one.
+fn strip_offset_tag(line: &str) -> (String, Option<f64>) {
+    let lower = line.to_ascii_lowercase();
+    let mut out = String::with_capacity(line.len());
+    let mut offset: Option<f64> = None;
+    let mut i = 0usize;
+    while i < line.len() {
+        if line.as_bytes()[i] == b'[' && lower[i..].starts_with("[offset:") {
+            if let Some(end_rel) = lower[i..].find(']') {
+                let inner = line[i + 8..i + end_rel].trim().trim_start_matches('+');
+                if let Ok(v) = inner.parse::<f64>() {
+                    offset = Some(v);
+                }
+                i += end_rel + 1;
+                continue;
+            }
+        }
+        let ch = line[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    (out, offset)
 }
 
 fn parse_plain_lyrics(input: &str) -> Vec<LyricsLine> {
@@ -568,4 +605,40 @@ fn normalize(input: &str) -> String {
         }
     }
     out.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lrc_offset_tag_shifts_all_lines() {
+        let lines = parse_synced_lyrics("[00:01.000][offset:-1200]Hello\n[00:02.000]World");
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].start_ms, Some(-200.0));
+        assert_eq!(lines[0].text, "Hello");
+        assert_eq!(lines[1].start_ms, Some(800.0));
+        assert_eq!(lines[1].text, "World");
+        assert!(!lines.iter().any(|l| l.text.contains("offset")), "tag leaked into text");
+    }
+
+    #[test]
+    fn lrc_offset_tag_standalone_line_applies_to_file() {
+        let lines = parse_synced_lyrics("[offset:-1200]\n[00:01.000]Hello\n[00:03.000]World");
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].start_ms, Some(-200.0));
+        assert_eq!(lines[1].start_ms, Some(1800.0));
+    }
+
+    #[test]
+    fn lrc_positive_offset_and_plain_unaffected() {
+        let lines = parse_synced_lyrics("[offset:+500]\n[00:01.000]Hello");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].start_ms, Some(1500.0));
+
+        let plain = parse_synced_lyrics("[00:01.000]Hello\n[00:02.500]World");
+        assert_eq!(plain[0].start_ms, Some(1000.0));
+        assert_eq!(plain[1].start_ms, Some(2500.0));
+        assert_eq!(plain[0].text, "Hello");
+    }
 }

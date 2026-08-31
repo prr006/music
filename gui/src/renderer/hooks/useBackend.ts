@@ -98,6 +98,29 @@ export function useBackend() {
   const sRef = useRef(s);
   sRef.current = s;
 
+  // ─── Smooth position ────────────────────────────────────────────────
+  // The backend broadcasts position at 2 Hz. Displaying those samples
+  // directly makes the progress bar and lyric highlight step (or lag) by
+  // up to half a second. Instead we keep an anchor — the last authoritative
+  // sample and when it arrived — and extrapolate with the local clock.
+  // Every event that can move the position (track change, seek, pause)
+  // re-anchors, so extrapolation only ever runs between fresh samples.
+  const posAnchorRef = useRef<{ pos: number; at: number }>({ pos: 0, at: 0 });
+
+  /** Current playback position in seconds, interpolated to "now". */
+  const getPosition = useCallback((): number => {
+    const p = sRef.current;
+    if (p.loading || !p.currentTrack) return 0;
+    const { pos, at } = posAnchorRef.current;
+    if (!p.playing) return pos;
+    const current = pos + (performance.now() - at) / 1000;
+    return p.duration > 0 ? Math.min(current, p.duration) : current;
+  }, []);
+
+  const reAnchor = useCallback((pos: number) => {
+    posAnchorRef.current = { pos, at: performance.now() };
+  }, []);
+
   // ─── Connection ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -157,6 +180,15 @@ export function useBackend() {
           const track = e.track as Track | null;
           const playing = e.playing as boolean;
           const loading = (e.loading as boolean) ?? false;
+          // Re-anchor the smooth clock on every fresh position sample.
+          if (!loading && e.position != null) {
+            const p0 = sRef.current;
+            const expectedId = p0.loading ? p0.loadingTrack?.id : p0.currentTrack?.id;
+            const stale =
+              (track && expectedId && track.id !== expectedId) ||
+              (!track && p0.currentTrack);
+            if (!stale) reAnchor(e.position as number);
+          }
           set(p => {
             // Reject stale events from a previous track. While we are loading,
             // only the track we are waiting for may update state; once loaded,
@@ -190,6 +222,7 @@ export function useBackend() {
         }
         case 'track-changed': {
           const track = e.track as Track | null;
+          reAnchor(0);
           set(p => {
             // Add previous track to history (if different from new track)
             const newHistory = p.currentTrack && track && p.currentTrack.id !== track.id
@@ -311,8 +344,9 @@ export function useBackend() {
           ? { ...DEFAULT_SETTINGS, ...(d.settings as AppSettings) }
           : p.settings,
       }));
+      reAnchor((d.timePos as number) ?? 0);
     }
-  }, [send]);
+  }, [send, reAnchor]);
 
   const fetchQueue = useCallback(async () => {
     const r = await send({ type: 'get-queue' });
@@ -347,6 +381,7 @@ export function useBackend() {
   // ─── Playback ────────────────────────────────────────────────────────
 
   const play = useCallback(async (track: Track) => {
+    reAnchor(0);
     set(p => ({
       ...p,
       loading: true,
@@ -389,13 +424,17 @@ export function useBackend() {
   }, [send, fetchQueue]);
 
   const togglePause = useCallback(async () => {
+    // Anchor at the true position right now: pausing freezes the clock at
+    // this sample, resuming starts extrapolation from it.
+    reAnchor(getPosition());
     // Optimistic
     set(p => ({ ...p, playing: !p.playing }));
     const r = await send({ type: 'toggle' });
     if (!r.ok) set(p => ({ ...p, playing: !p.playing })); // revert
-  }, [send]);
+  }, [send, getPosition, reAnchor]);
 
   const nextTrack = useCallback(async () => {
+    reAnchor(0);
     set(p => ({
       ...p,
       loading: true,
@@ -409,6 +448,7 @@ export function useBackend() {
   }, [send]);
 
   const previousTrack = useCallback(async () => {
+    reAnchor(0);
     set(p => ({
       ...p,
       loading: true,
@@ -421,17 +461,20 @@ export function useBackend() {
   }, [send]);
 
   const seek = useCallback(async (seconds: number) => {
-    // Optimistic
-    set(p => ({ ...p, position: Math.max(0, Math.min(p.duration, p.position + seconds)) }));
+    // Optimistic; anchor so the clock does not extrapolate past the jump.
+    const target = Math.max(0, Math.min(sRef.current.duration, getPosition() + seconds));
+    reAnchor(target);
+    set(p => ({ ...p, position: target }));
     await send({ type: 'seek', seconds });
-  }, [send]);
+  }, [send, getPosition, reAnchor]);
 
   const seekTo = useCallback(async (absolutePosition: number) => {
-    const current = sRef.current.position;
-    const diff = absolutePosition - current;
+    // Diff from the *fresh* interpolated position, not the last 2 Hz sample.
+    const diff = absolutePosition - getPosition();
+    reAnchor(absolutePosition);
     set(p => ({ ...p, position: absolutePosition }));
     await send({ type: 'seek', seconds: diff });
-  }, [send]);
+  }, [send, getPosition, reAnchor]);
 
   const setVolume = useCallback(async (vol: number) => {
     set(p => ({ ...p, volume: vol }));
@@ -480,6 +523,7 @@ export function useBackend() {
   const playFromQueue = useCallback(async (index: number) => {
     const track = sRef.current.queue[index]?.track;
     if (track) {
+      reAnchor(0);
       set(p => ({
         ...p,
         loading: true,
@@ -562,6 +606,7 @@ export function useBackend() {
 
   return {
     state: s,
+    getPosition,
     search, play, addToQueue, playNext,
     togglePause, nextTrack, previousTrack,
     seek, seekTo, setVolume, toggleMute,
