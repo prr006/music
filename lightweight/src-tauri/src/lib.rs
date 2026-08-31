@@ -67,6 +67,7 @@ pub fn run() {
                     Ok(()) => emit_connection(&app_handle, &startup_state, ConnectionState::Connected).await,
                     Err(e) => {
                         log::error!("MELO backend startup failed: {e}");
+                        eprintln!("MELO backend startup failed: {e}");
                         emit_connection(&app_handle, &startup_state, ConnectionState::Error).await;
                     }
                 }

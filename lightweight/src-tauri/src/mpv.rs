@@ -377,10 +377,12 @@ async fn drain_stream<R>(mut stream: R)
 where
     R: tokio::io::AsyncRead + Unpin,
 {
+    use std::io::Write;
     let mut buf = [0u8; 4096];
     while let Ok(n) = stream.read(&mut buf).await {
         if n == 0 {
             break;
         }
+        let _ = std::io::stderr().write_all(&buf[..n]);
     }
 }
