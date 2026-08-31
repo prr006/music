@@ -120,7 +120,8 @@ export function installTauriBridge(): void {
     },
 
     windowClose: (): void => {
-      // Let the Rust close-to-tray handler decide what "close" means.
+      // Closing the window shuts down the Tauri app, which synchronously stops
+      // the mpv child before the process exits.
       void currentWindow?.close?.().catch(() => {});
     },
 

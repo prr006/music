@@ -237,13 +237,11 @@ async fn backend_send_impl(
             ControlResponse::ok("Playback stopped.")
         }
         "quit" => {
-            let cloned = state.clone();
-            let app_handle = app.clone();
+            let mut engine = state.engine.lock().await;
+            engine.shutdown().await;
+            drop(engine);
             tauri::async_runtime::spawn(async move {
-                let mut engine = cloned.engine.lock().await;
-                engine.shutdown().await;
-                drop(engine);
-                app_handle.exit(0);
+                app.exit(0);
             });
             ControlResponse::ok("Closing.")
         }

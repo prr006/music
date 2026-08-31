@@ -156,7 +156,18 @@ export function useBackend() {
           const track = e.track as Track | null;
           const playing = e.playing as boolean;
           set(p => {
-            if (p.loading && p.loadingTrack && track && track.id !== p.loadingTrack.id) {
+            // Reject stale events from a previous track. While we are loading,
+            // only the track we are waiting for may update state; once loaded,
+            // only the track shown as current may update it.
+            const expectedId = p.loading
+              ? p.loadingTrack?.id
+              : p.currentTrack?.id;
+            if (track && expectedId && track.id !== expectedId) {
+              return p;
+            }
+            // A trackless event is only meaningful when nothing should be
+            // active; drop it if we are still showing a track.
+            if (!track && p.currentTrack) {
               return p;
             }
             return {
@@ -182,12 +193,38 @@ export function useBackend() {
             const newHistory = p.currentTrack && track && p.currentTrack.id !== track.id
               ? [p.currentTrack, ...p.history.filter(h => h.id !== p.currentTrack!.id)].slice(0, 50)
               : p.history;
+            if (!track) {
+              return {
+                ...p,
+                currentTrack: null,
+                playing: false,
+                loading: false,
+                loadingTrack: null,
+                position: 0,
+                duration: 0,
+                history: newHistory,
+              };
+            }
+            // Do not show a new track as ready until mpv reports it is actually
+            // playing. An existing loading load stays loading; a fresh track
+            // change (manual or auto-next) enters loading.
+            if (p.loading) {
+              return {
+                ...p,
+                currentTrack: track,
+                loadingTrack: track,
+                playing: false,
+                position: 0,
+                duration: 0,
+                history: newHistory,
+              };
+            }
             return {
               ...p,
               currentTrack: track,
-              playing: !!track,
-              loading: false,
-              loadingTrack: null,
+              loading: true,
+              loadingTrack: track,
+              playing: false,
               position: 0,
               duration: 0,
               history: newHistory,
@@ -382,7 +419,7 @@ export function useBackend() {
     set(p => ({
       ...p,
       loading: true,
-      loadingTrack: null,
+      loadingTrack: p.currentTrack,
       playing: false,
       position: 0,
     }));

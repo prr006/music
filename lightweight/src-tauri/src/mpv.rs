@@ -325,10 +325,22 @@ impl Mpv {
     }
 
     pub async fn shutdown(&mut self) {
-        let _ = self.request(json!(["quit"]).as_array().cloned().unwrap_or_default()).await;
+        // Ask mpv to exit cleanly. Do not use `request`: mpv may close the IPC
+        // socket without replying to `quit`, which would make `request` block
+        // until its 5s timeout. Fire the command on its own connection and
+        // drop it immediately, then give the process a short grace period
+        // before killing it unconditionally.
+        let quit_payload = json!({ "command": ["quit"], "request_id": 0 });
+        if let Ok(mut stream) = connect_mpv(&self.pipe).await {
+            let _ = write_line(&mut stream, &quit_payload).await;
+            drop(stream);
+        }
         if let Some(mut child) = self.child.take() {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
+            let grace = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+            if grace.is_err() {
+                let _ = child.kill().await;
+                let _ = tokio::time::timeout(Duration::from_secs(5), child.wait()).await;
+            }
         }
     }
 }
@@ -341,6 +353,13 @@ async fn event_loop(pipe: String, event_tx: UnboundedSender<Value>) -> anyhow::R
     let observes = ["media-title", "pause", "time-pos", "duration", "volume", "mute", "idle-active"];
     for (idx, name) in observes.iter().enumerate() {
         let payload = json!({ "command": ["observe_property", idx + 1, name], "request_id": 1000 + idx });
+        write_line(&mut stream, &payload).await?;
+    }
+    // Explicitly enable the lifecycle events we rely on. They are usually on
+    // by default, but calling this keeps auto-next and shutdown behavior
+    // deterministic across mpv configurations.
+    for (idx, name) in ["start-file", "end-file"].iter().enumerate() {
+        let payload = json!({ "command": ["enable_event", name], "request_id": 1100 + idx });
         write_line(&mut stream, &payload).await?;
     }
 

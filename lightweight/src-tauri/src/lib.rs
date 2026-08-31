@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
 mod commands;
 mod config;
@@ -118,20 +118,6 @@ pub fn run() {
                 }
             });
 
-            // ─── Close (X) → hide to tray instead of quitting ───────────────
-            let close_state = state.clone();
-            if let Some(window) = app.get_webview_window("main") {
-                let win = window.clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::CloseRequested { api, .. } = event {
-                        if !close_state.quitting.load(Ordering::SeqCst) {
-                            api.prevent_close();
-                            let _ = win.hide();
-                        }
-                    }
-                });
-            }
-
             // ─── Tray ────────────────────────────────────────────────────────
             if let Some(icon) = app.default_window_icon() {
                 let tray_state = state.clone();
@@ -153,13 +139,11 @@ pub fn run() {
                         } else if id == "quit" {
                             tray_state.quitting.store(true, Ordering::SeqCst);
                             let state = tray_state.clone();
-                            let handle = app.clone();
-                            tauri::async_runtime::spawn(async move {
+                            tauri::async_runtime::block_on(async move {
                                 let mut eng = state.engine.lock().await;
                                 eng.shutdown().await;
-                                drop(eng);
-                                handle.exit(0);
                             });
+                            app.exit(0);
                         }
                     })
                     .build(app)?;
@@ -184,7 +168,7 @@ pub fn run() {
                     if let Some(state) = app.try_state::<AppState>() {
                         state.quitting.store(true, Ordering::SeqCst);
                         let cloned = (*state.inner()).clone();
-                        tauri::async_runtime::spawn(async move {
+                        tauri::async_runtime::block_on(async move {
                             let mut eng = cloned.engine.lock().await;
                             eng.shutdown().await;
                         });
