@@ -261,14 +261,22 @@ impl Mpv {
         }
         self.state.paused = pause.as_bool().unwrap_or(self.state.paused);
         self.state.muted = mute.as_bool().unwrap_or(self.state.muted);
-        self.state.time_pos = time_pos.as_f64().unwrap_or(self.state.time_pos);
-        self.state.duration = duration.as_f64().unwrap_or(self.state.duration);
+        // mpv reports time-pos/duration as `null` while idle or between files.
+        // Falling back to the previous value would leak the prior track's
+        // progress into the next one, so fall back to 0 instead.
+        self.state.time_pos = time_pos.as_f64().unwrap_or(0.0);
+        self.state.duration = duration.as_f64().unwrap_or(0.0);
         self.state.volume = volume.as_f64().map(|v| v.round() as u64).unwrap_or(self.state.volume);
         self.state.idle_active = idle.as_bool().unwrap_or(self.state.idle_active);
         Ok(())
     }
 
     pub async fn load(&mut self, url: &str) -> Result<(), String> {
+        // Reset stale progress from the previous file so a new track never
+        // briefly shows the old track's position/duration.
+        self.state.time_pos = 0.0;
+        self.state.duration = 0.0;
+        self.state.title.clear();
         let command = json!(["loadfile", url, "replace"]).as_array().cloned().unwrap_or_default();
         self.request(command).await.map(|_| ())
     }
@@ -357,8 +365,10 @@ async fn event_loop(pipe: String, event_tx: UnboundedSender<Value>) -> anyhow::R
     }
     // Explicitly enable the lifecycle events we rely on. They are usually on
     // by default, but calling this keeps auto-next and shutdown behavior
-    // deterministic across mpv configurations.
-    for (idx, name) in ["start-file", "end-file"].iter().enumerate() {
+    // deterministic across mpv configurations. `file-loaded` is the signal
+    // that a load actually succeeded (unlike `start-file`, which also fires
+    // for loads that later fail).
+    for (idx, name) in ["start-file", "end-file", "file-loaded"].iter().enumerate() {
         let payload = json!({ "command": ["enable_event", name], "request_id": 1100 + idx });
         write_line(&mut stream, &payload).await?;
     }
@@ -384,6 +394,11 @@ async fn event_loop(pipe: String, event_tx: UnboundedSender<Value>) -> anyhow::R
             }
         } else if value.get("event").and_then(Value::as_str) == Some("start-file") {
             let event = json!({ "type": "start-file" });
+            if event_tx.send(event).is_err() {
+                break;
+            }
+        } else if value.get("event").and_then(Value::as_str) == Some("file-loaded") {
+            let event = json!({ "type": "file-loaded" });
             if event_tx.send(event).is_err() {
                 break;
             }
