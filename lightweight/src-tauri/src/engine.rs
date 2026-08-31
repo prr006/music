@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use rand::seq::SliceRandom;
@@ -14,11 +15,32 @@ use crate::types::{AppSettings, Playlist, QueueItem, QueueSource, RepeatMode, Tr
 use crate::ytdlp::YtDlp;
 
 const REFILL_THRESHOLD: usize = 5;
+/// Upper bound for a pending mpv load. A load that is not confirmed by
+/// `file-loaded` within this window is treated as failed so playback never
+/// spins in a loading state forever.
+const LOAD_TIMEOUT: Duration = Duration::from_secs(45);
 
 #[derive(Debug, Clone)]
 pub struct RefillRequest {
     pub generation: u64,
     pub from_id: String,
+}
+
+/// How an in-flight auto-advance finalizes its state once the next track is
+/// confirmed to have loaded.
+enum AdvanceKind {
+    /// Standard advance from the queue head.
+    Queue,
+    /// Repeat-all recycling of history back into the queue.
+    RepeatAll { recycled: Vec<QueueItem> },
+}
+
+/// A queued track whose `loadfile` has been issued but whose load has not yet
+/// been confirmed by mpv (`file-loaded`). Queue/history/current-track state is
+/// committed only once the load succeeds, so a failed load never corrupts them.
+struct PendingAdvance {
+    next: Track,
+    kind: AdvanceKind,
 }
 
 pub struct Engine {
@@ -37,6 +59,19 @@ pub struct Engine {
     pub fetching_mix: bool,
     pub mix_generation: u64,
     pub downloading: HashSet<String>,
+    /// True while an internal transition is advancing to the next track.
+    pub advancing: bool,
+    /// True from the moment a new URL is issued to mpv until `file-loaded`.
+    /// Prevents idle/end-file events from advancing again while a load is in flight.
+    pub load_pending: bool,
+    /// True once an auto-advance has been attempted for the current idle state.
+    /// Prevents a duplicate `end-file` from retrying in a tight loop when a
+    /// load fails; reset by the next successful `file-loaded` or user action.
+    pub advance_attempted: bool,
+    /// Deferred auto-advance awaiting mpv `file-loaded`.
+    pub pending_advance: Option<PendingAdvance>,
+    /// Timestamp when the current in-flight load began, for the load timeout.
+    pub load_started: Option<Instant>,
 }
 
 impl Engine {
@@ -57,6 +92,11 @@ impl Engine {
             fetching_mix: false,
             mix_generation: 0,
             downloading: HashSet::new(),
+            advancing: false,
+            load_pending: false,
+            advance_attempted: false,
+            pending_advance: None,
+            load_started: None,
         }
     }
 
@@ -71,6 +111,10 @@ impl Engine {
     }
 
     pub async fn shutdown(&mut self) {
+        self.advancing = false;
+        self.mark_load_done();
+        self.advance_attempted = false;
+        self.pending_advance = None;
         self.mpv.shutdown().await;
     }
 
@@ -80,13 +124,22 @@ impl Engine {
 
     pub fn emit_playback_state(&self) {
         let track = self.current_track.clone();
-        let playing = !self.mpv.state.paused;
+        let playing = self.is_playing();
+        let loading = self.load_pending;
+        // Never surface the previous track's position/duration while a load is
+        // in flight; show a zeroed (or metadata-only) state instead.
+        let (position, duration) = if loading {
+            (0.0, track.as_ref().and_then(|t| t.duration).unwrap_or(0.0))
+        } else {
+            (self.mpv.state.time_pos, self.mpv.state.duration)
+        };
         self.emit(json!({
             "type": "playback-state",
             "track": track,
             "playing": playing,
-            "position": self.mpv.state.time_pos,
-            "duration": self.mpv.state.duration,
+            "loading": loading,
+            "position": position,
+            "duration": duration,
             "volume": self.mpv.state.volume,
             "muted": self.mpv.state.muted,
             "shuffle": self.shuffle,
@@ -122,22 +175,141 @@ impl Engine {
         self.emit(json!({ "type": "track-changed", "track": self.current_track }));
     }
 
+    fn is_playing(&self) -> bool {
+        !self.mpv.state.paused && !self.load_pending && !self.mpv.state.idle_active
+    }
+
+    fn mark_load_started(&mut self) {
+        self.load_pending = true;
+        self.load_started = Some(Instant::now());
+    }
+
+    fn mark_load_done(&mut self) {
+        self.load_pending = false;
+        self.load_started = None;
+    }
+
+    async fn load_track(&mut self, url: &str) -> Result<(), String> {
+        self.mark_load_started();
+        let result = self.mpv.load(url).await;
+        if let Err(e) = &result {
+            self.mark_load_done();
+            log::warn!("mpv failed to load a track: {e}");
+        }
+        result
+    }
+
+    async fn halt_and_load(&mut self, url: &str) -> Result<(), String> {
+        self.advance_attempted = false;
+        self.pending_advance = None;
+        let _ = self.mpv.stop().await;
+        self.load_track(url).await
+    }
+
     pub async fn tick(&mut self) {
         let _ = self.mpv.poll_state().await;
+        // Bounded load: if a load is not confirmed within the timeout, treat it
+        // as failed so playback never spins in a loading state forever.
+        if self.load_pending {
+            if let Some(started) = self.load_started {
+                if started.elapsed() >= LOAD_TIMEOUT {
+                    log::warn!("mpv load timed out; marking playback stopped");
+                    self.mark_load_done();
+                    self.pending_advance = None;
+                }
+            }
+        }
         self.emit_playback_state();
     }
 
     pub async fn handle_event(&mut self, event: Value) -> RefillRequest {
-        if event.get("type").and_then(Value::as_str) == Some("end-file") {
-            let reason = event.get("reason").and_then(Value::as_str).unwrap_or("unknown");
-            if reason == "eof" || reason == "quit" {
-                return self.on_end_of_file().await;
+        let event_type = event.get("type").and_then(Value::as_str).unwrap_or_default();
+        match event_type {
+            "start-file" => {
+                // A file began loading. Do not commit anything yet; the
+                // `file-loaded` event is the confirmation that it succeeded.
+                RefillRequest { generation: 0, from_id: String::new() }
+            }
+            "file-loaded" => {
+                // The load succeeded: finalize any deferred auto-advance.
+                self.mark_load_done();
+                self.advance_attempted = false;
+                // mpv is now actively playing, so reflect that immediately
+                // instead of waiting for the next poll.
+                self.mpv.state.idle_active = false;
+                if let Some(pending) = self.pending_advance.take() {
+                    return self.commit_advance(pending);
+                }
+                self.emit_playback_state();
+                RefillRequest { generation: 0, from_id: String::new() }
+            }
+            "end-file" => {
+                let reason = event.get("reason").and_then(Value::as_str).unwrap_or("unknown");
+                // A file ended, so mpv is idle until the next load completes.
+                self.mpv.state.idle_active = true;
+                if reason == "error" {
+                    // A load we issued failed. Roll back any deferred advance
+                    // and surface a stopped state instead of a stuck spinner.
+                    self.mark_load_done();
+                    if let Some(pending) = self.pending_advance.take() {
+                        log::warn!("auto-next failed to load {}", pending.next.id);
+                    }
+                    self.emit_playback_state();
+                    return RefillRequest { generation: 0, from_id: String::new() };
+                }
+                // Only a genuine end-of-file should auto-advance. `stop` comes
+                // from manual track switches and `quit` from shutdown.
+                // `advance_attempted` prevents a duplicate `end-file` from
+                // re-running an advance whose load already failed.
+                if reason == "eof" && !self.load_pending && !self.advancing && !self.advance_attempted {
+                    self.on_end_of_file().await
+                } else {
+                    RefillRequest { generation: 0, from_id: String::new() }
+                }
+            }
+            _ => RefillRequest { generation: 0, from_id: String::new() },
+        }
+    }
+
+    /// Commit a deferred auto-advance now that mpv confirmed the load.
+    fn commit_advance(&mut self, pending: PendingAdvance) -> RefillRequest {
+        match pending.kind {
+            AdvanceKind::Queue => {
+                // The confirmed next track is still at the queue head; remove it.
+                if self.queue.first().map(|q| q.track.id == pending.next.id).unwrap_or(false) {
+                    self.queue.remove(0);
+                }
+                self.emit_queue_changed();
+                self.emit_playback_state();
+                self.needs_refill()
+                    .then(|| RefillRequest {
+                        generation: self.mix_generation,
+                        from_id: pending.next.id.clone(),
+                    })
+                    .unwrap_or(RefillRequest { generation: 0, from_id: String::new() })
+            }
+            AdvanceKind::RepeatAll { recycled } => {
+                self.history.clear();
+                self.queue = recycled;
+                self.emit_queue_changed();
+                self.emit_playback_state();
+                RefillRequest { generation: 0, from_id: String::new() }
             }
         }
-        RefillRequest { generation: 0, from_id: String::new() }
     }
 
     async fn on_end_of_file(&mut self) -> RefillRequest {
+        if self.advancing {
+            return RefillRequest { generation: 0, from_id: String::new() };
+        }
+        self.advancing = true;
+        self.advance_attempted = true;
+        let result = self.advance_after_eof().await;
+        self.advancing = false;
+        result
+    }
+
+    async fn advance_after_eof(&mut self) -> RefillRequest {
         let Some(current) = self.current_track.clone() else {
             return RefillRequest { generation: 0, from_id: String::new() };
         };
@@ -146,39 +318,56 @@ impl Engine {
         }
 
         if !self.queue.is_empty() {
-            self.history.push(current);
-            let next = self.queue.remove(0);
-            self.current_track = Some(next.track.clone());
+            let next = self.queue[0].clone();
             let url = self.play_url(&next.track);
-            let _ = self.mpv.load(&url).await;
+            // Issue the load but do NOT commit queue/history/current-track yet.
+            // `loadfile` only acknowledges the command; `file-loaded` is the
+            // confirmation that the next track actually started.
+            if let Err(e) = self.load_track(&url).await {
+                log::warn!("auto-next failed to issue load for {}: {e}", next.track.id);
+                self.emit_playback_state();
+                return RefillRequest { generation: 0, from_id: String::new() };
+            }
+            // Surface the next track as loading immediately; the finished track
+            // belongs in history regardless of whether the next one succeeds.
+            self.history.push(current);
+            self.current_track = Some(next.track.clone());
             self.emit_track_changed();
-            self.emit_queue_changed();
-            let refill = self.needs_refill().then(|| RefillRequest {
-                generation: self.mix_generation,
-                from_id: next.track.id.clone(),
+            self.pending_advance = Some(PendingAdvance {
+                next: next.track,
+                kind: AdvanceKind::Queue,
             });
-            return refill.unwrap_or(RefillRequest { generation: 0, from_id: String::new() });
+            return RefillRequest { generation: 0, from_id: String::new() };
         }
 
         if self.mpv.state.repeat_mode == RepeatMode::All && !self.history.is_empty() {
-            self.queue = self
+            let mut recycled = self
                 .history
                 .iter()
                 .cloned()
                 .map(|track| QueueItem { track, source: QueueSource::Radio })
-                .collect();
-            self.history.clear();
+                .collect::<Vec<_>>();
             if self.shuffle {
-                self.shuffle_radio_only();
+                recycled.shuffle(&mut rand::thread_rng());
             }
-            let next = self.queue.remove(0);
-            self.current_track = Some(next.track.clone());
+            let next = recycled.remove(0);
             let url = self.play_url(&next.track);
-            let _ = self.mpv.load(&url).await;
+            if let Err(e) = self.load_track(&url).await {
+                log::warn!("repeat-all failed to issue load for {}: {e}", next.track.id);
+                self.emit_playback_state();
+                return RefillRequest { generation: 0, from_id: String::new() };
+            }
+            self.current_track = Some(next.track.clone());
             self.emit_track_changed();
-            self.emit_queue_changed();
+            self.pending_advance = Some(PendingAdvance {
+                next: next.track,
+                kind: AdvanceKind::RepeatAll { recycled },
+            });
+            return RefillRequest { generation: 0, from_id: String::new() };
         }
 
+        // No next track: stop cleanly. mpv is already idle after EOF.
+        self.emit_playback_state();
         RefillRequest { generation: 0, from_id: String::new() }
     }
 
@@ -226,7 +415,9 @@ impl Engine {
         self.queue.clear();
         self.current_track = Some(track.clone());
         let url = self.play_url(&track);
-        let _ = self.mpv.load(&url).await;
+        if let Err(e) = self.halt_and_load(&url).await {
+            log::warn!("play failed to load {}: {e}", track.id);
+        }
         self.emit_track_changed();
         self.emit_queue_changed();
         // Give the renderer an immediate state; radio mix is filled by the command caller.
@@ -252,7 +443,9 @@ impl Engine {
         self.queue = queue;
         self.current_track = Some(track.clone());
         let url = self.play_url(&track);
-        let _ = self.mpv.load(&url).await;
+        if let Err(e) = self.halt_and_load(&url).await {
+            log::warn!("playlist load failed for {}: {e}", track.id);
+        }
         self.emit_track_changed();
         self.emit_queue_changed();
         self.emit_playback_state();
@@ -283,7 +476,9 @@ impl Engine {
         }
         self.current_track = Some(item.track.clone());
         let url = self.play_url(&item.track);
-        self.mpv.load(&url).await.map_err(|e| anyhow::anyhow!(e))?;
+        if let Err(e) = self.halt_and_load(&url).await {
+            log::warn!("queue load failed for {}: {e}", item.track.id);
+        }
         self.emit_track_changed();
         self.emit_queue_changed();
         self.emit_playback_state();
@@ -326,9 +521,12 @@ impl Engine {
         let next = self.queue.remove(0);
         self.current_track = Some(next.track.clone());
         let url = self.play_url(&next.track);
-        self.mpv.load(&url).await.map_err(|e| anyhow::anyhow!(e))?;
+        if let Err(e) = self.halt_and_load(&url).await {
+            log::warn!("next load failed for {}: {e}", next.track.id);
+        }
         self.emit_track_changed();
         self.emit_queue_changed();
+        self.emit_playback_state();
         let refill = self.needs_refill().then(|| RefillRequest {
             generation: self.mix_generation,
             from_id: next.track.id.clone(),
@@ -345,9 +543,12 @@ impl Engine {
         }
         self.current_track = Some(previous.clone());
         let url = self.play_url(&previous);
-        self.mpv.load(&url).await.map_err(|e| anyhow::anyhow!(e))?;
+        if let Err(e) = self.halt_and_load(&url).await {
+            log::warn!("previous load failed for {}: {e}", previous.id);
+        }
         self.emit_track_changed();
         self.emit_queue_changed();
+        self.emit_playback_state();
         Ok(())
     }
 
@@ -386,6 +587,10 @@ impl Engine {
     pub async fn stop(&mut self) {
         self.mix_generation += 1;
         self.fetching_mix = false;
+        self.advancing = false;
+        self.mark_load_done();
+        self.advance_attempted = false;
+        self.pending_advance = None;
         self.queue.clear();
         self.history.clear();
         self.current_track = None;
@@ -472,6 +677,12 @@ impl Engine {
     }
 
     pub fn snapshot(&self) -> Value {
+        let loading = self.load_pending;
+        let (time_pos, duration) = if loading {
+            (0.0, self.current_track.as_ref().and_then(|t| t.duration).unwrap_or(0.0))
+        } else {
+            (self.mpv.state.time_pos, self.mpv.state.duration)
+        };
         json!({
             "currentTrack": self.current_track,
             "queue": self.queue,
@@ -482,9 +693,10 @@ impl Engine {
             "settings": self.settings,
             "volume": self.mpv.state.volume,
             "muted": self.mpv.state.muted,
-            "paused": self.mpv.state.paused,
-            "timePos": self.mpv.state.time_pos,
-            "duration": self.mpv.state.duration,
+            "paused": self.mpv.state.paused || self.load_pending,
+            "loading": loading,
+            "timePos": time_pos,
+            "duration": duration,
             "shuffle": self.shuffle,
             "repeat": self.mpv.state.repeat_mode,
         })
@@ -498,7 +710,7 @@ impl Engine {
         let track = self.current_track.as_ref().map(|t| t.title.clone()).unwrap_or_else(|| "stopped".into());
         format!(
             "MELO | {track} | {} | {}% | queue {}",
-            if self.mpv.state.paused { "paused" } else { "playing" },
+            if self.mpv.state.paused { "paused" } else if self.is_playing() { "playing" } else { "stopped" },
             self.mpv.state.volume,
             self.queue.len(),
         )

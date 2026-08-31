@@ -92,10 +92,10 @@ impl Mpv {
     pub fn new() -> Self {
         let pid = std::process::id();
         let pipe = if cfg!(windows) {
-            format!(r"\\.\pipe\ytmusic-player-mpv-{pid}")
+            format!(r"\\.\pipe\melo-mpv-{pid}")
         } else {
             let tmp = std::env::temp_dir();
-            tmp.join(format!("ytmusic-player-mpv-{pid}.sock")).to_string_lossy().to_string()
+            tmp.join(format!("melo-mpv-{pid}.sock")).to_string_lossy().to_string()
         };
         Mpv {
             pipe,
@@ -261,14 +261,22 @@ impl Mpv {
         }
         self.state.paused = pause.as_bool().unwrap_or(self.state.paused);
         self.state.muted = mute.as_bool().unwrap_or(self.state.muted);
-        self.state.time_pos = time_pos.as_f64().unwrap_or(self.state.time_pos);
-        self.state.duration = duration.as_f64().unwrap_or(self.state.duration);
+        // mpv reports time-pos/duration as `null` while idle or between files.
+        // Falling back to the previous value would leak the prior track's
+        // progress into the next one, so fall back to 0 instead.
+        self.state.time_pos = time_pos.as_f64().unwrap_or(0.0);
+        self.state.duration = duration.as_f64().unwrap_or(0.0);
         self.state.volume = volume.as_f64().map(|v| v.round() as u64).unwrap_or(self.state.volume);
         self.state.idle_active = idle.as_bool().unwrap_or(self.state.idle_active);
         Ok(())
     }
 
     pub async fn load(&mut self, url: &str) -> Result<(), String> {
+        // Reset stale progress from the previous file so a new track never
+        // briefly shows the old track's position/duration.
+        self.state.time_pos = 0.0;
+        self.state.duration = 0.0;
+        self.state.title.clear();
         let command = json!(["loadfile", url, "replace"]).as_array().cloned().unwrap_or_default();
         self.request(command).await.map(|_| ())
     }
@@ -325,10 +333,22 @@ impl Mpv {
     }
 
     pub async fn shutdown(&mut self) {
-        let _ = self.request(json!(["quit"]).as_array().cloned().unwrap_or_default()).await;
+        // Ask mpv to exit cleanly. Do not use `request`: mpv may close the IPC
+        // socket without replying to `quit`, which would make `request` block
+        // until its 5s timeout. Fire the command on its own connection and
+        // drop it immediately, then give the process a short grace period
+        // before killing it unconditionally.
+        let quit_payload = json!({ "command": ["quit"], "request_id": 0 });
+        if let Ok(mut stream) = connect_mpv(&self.pipe).await {
+            let _ = write_line(&mut stream, &quit_payload).await;
+            drop(stream);
+        }
         if let Some(mut child) = self.child.take() {
-            let _ = child.kill().await;
-            let _ = child.wait().await;
+            let grace = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+            if grace.is_err() {
+                let _ = child.kill().await;
+                let _ = tokio::time::timeout(Duration::from_secs(5), child.wait()).await;
+            }
         }
     }
 }
@@ -341,6 +361,15 @@ async fn event_loop(pipe: String, event_tx: UnboundedSender<Value>) -> anyhow::R
     let observes = ["media-title", "pause", "time-pos", "duration", "volume", "mute", "idle-active"];
     for (idx, name) in observes.iter().enumerate() {
         let payload = json!({ "command": ["observe_property", idx + 1, name], "request_id": 1000 + idx });
+        write_line(&mut stream, &payload).await?;
+    }
+    // Explicitly enable the lifecycle events we rely on. They are usually on
+    // by default, but calling this keeps auto-next and shutdown behavior
+    // deterministic across mpv configurations. `file-loaded` is the signal
+    // that a load actually succeeded (unlike `start-file`, which also fires
+    // for loads that later fail).
+    for (idx, name) in ["start-file", "end-file", "file-loaded"].iter().enumerate() {
+        let payload = json!({ "command": ["enable_event", name], "request_id": 1100 + idx });
         write_line(&mut stream, &payload).await?;
     }
 
@@ -365,6 +394,11 @@ async fn event_loop(pipe: String, event_tx: UnboundedSender<Value>) -> anyhow::R
             }
         } else if value.get("event").and_then(Value::as_str) == Some("start-file") {
             let event = json!({ "type": "start-file" });
+            if event_tx.send(event).is_err() {
+                break;
+            }
+        } else if value.get("event").and_then(Value::as_str) == Some("file-loaded") {
+            let event = json!({ "type": "file-loaded" });
             if event_tx.send(event).is_err() {
                 break;
             }

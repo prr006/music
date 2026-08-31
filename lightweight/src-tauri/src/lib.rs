@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
 mod commands;
 mod config;
@@ -41,6 +41,23 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                // Deterministic teardown: stop mpv before the window is
+                // destroyed so the child process never outlives the app. This
+                // is idempotent with the RunEvent::Exit shutdown below and with
+                // the tray "Quit" handler.
+                let app = window.app_handle();
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.quitting.store(true, Ordering::SeqCst);
+                    let cloned = (*state.inner()).clone();
+                    tauri::async_runtime::block_on(async move {
+                        let mut eng = cloned.engine.lock().await;
+                        eng.shutdown().await;
+                    });
+                }
+            }
+        })
         .setup(|app| {
             let runtime = runtime::discover_runtime(app.handle());
 
@@ -81,7 +98,7 @@ pub fn run() {
                 let mut rx = event_rx;
                 while let Some(event) = rx.recv().await {
                     let event_type = event.get("type").and_then(serde_json::Value::as_str).unwrap_or("");
-                    let internal = matches!(event_type, "property-change" | "end-file" | "start-file");
+                    let internal = matches!(event_type, "property-change" | "end-file" | "start-file" | "file-loaded");
                     if !internal {
                         let _ = event_app.emit("backend:event", &event);
                     }
@@ -118,28 +135,20 @@ pub fn run() {
                 }
             });
 
-            // ─── Close (X) → hide to tray instead of quitting ───────────────
-            let close_state = state.clone();
-            if let Some(window) = app.get_webview_window("main") {
-                let win = window.clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::CloseRequested { api, .. } = event {
-                        if !close_state.quitting.load(Ordering::SeqCst) {
-                            api.prevent_close();
-                            let _ = win.hide();
-                        }
-                    }
-                });
-            }
-
             // ─── Tray ────────────────────────────────────────────────────────
-            if let Some(icon) = app.default_window_icon() {
+            // `default_window_icon()` is `None` when no window icon is set, so
+            // fall back to the embedded PNG to guarantee a tray icon exists.
+            let tray_icon = app
+                .default_window_icon()
+                .cloned()
+                .or_else(|| tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png")).ok());
+            if let Some(icon) = tray_icon {
                 let tray_state = state.clone();
                 let show_item = MenuItem::with_id(app, "show", "Show MELO", true, None::<&str>)?;
                 let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
                 let tray_icon = TrayIconBuilder::new()
-                    .icon(icon.clone())
+                    .icon(icon)
                     .menu(&menu)
                     .show_menu_on_left_click(true)
                     .tooltip("MELO — light YouTube Music player")
@@ -153,13 +162,11 @@ pub fn run() {
                         } else if id == "quit" {
                             tray_state.quitting.store(true, Ordering::SeqCst);
                             let state = tray_state.clone();
-                            let handle = app.clone();
-                            tauri::async_runtime::spawn(async move {
+                            tauri::async_runtime::block_on(async move {
                                 let mut eng = state.engine.lock().await;
                                 eng.shutdown().await;
-                                drop(eng);
-                                handle.exit(0);
                             });
+                            app.exit(0);
                         }
                     })
                     .build(app)?;
@@ -184,7 +191,7 @@ pub fn run() {
                     if let Some(state) = app.try_state::<AppState>() {
                         state.quitting.store(true, Ordering::SeqCst);
                         let cloned = (*state.inner()).clone();
-                        tauri::async_runtime::spawn(async move {
+                        tauri::async_runtime::block_on(async move {
                             let mut eng = cloned.engine.lock().await;
                             eng.shutdown().await;
                         });

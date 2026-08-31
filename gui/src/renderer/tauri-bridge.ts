@@ -1,12 +1,11 @@
 /**
  * Tauri 2 bridge for the shared MELO renderer.
  *
- * The renderer was written against the Electron preload API (`window.api`).
- * When running under Tauri with `withGlobalTauri: true`, Tauri injects the
- * global `window.__TAURI__` object. This module installs the same `window.api`
- * surface on top of that global, so the React UI does not need to change.
- *
- * In Electron this module is a no-op because `window.__TAURI__` is undefined.
+ * The renderer speaks to the backend through a `window.api` surface. With
+ * `withGlobalTauri: true`, Tauri injects the global `window.__TAURI__` object;
+ * this module installs the `window.api` surface on top of that global, mapping
+ * each call to a Tauri `invoke`/event listener so the React UI talks to the
+ * Rust backend transparently.
  */
 
 type Unlisten = () => void;
@@ -120,7 +119,8 @@ export function installTauriBridge(): void {
     },
 
     windowClose: (): void => {
-      // Let the Rust close-to-tray handler decide what "close" means.
+      // Closing the window shuts down the Tauri app, which synchronously stops
+      // the mpv child before the process exits.
       void currentWindow?.close?.().catch(() => {});
     },
 
@@ -132,9 +132,9 @@ export function installTauriBridge(): void {
       return wireWindowResized(currentWindow, callback);
     },
 
-    // The Electron renderer calls these optional Mini Player / tray-settings
-    // methods. The lightweight Tauri shell does not implement a separate mini
-    // window yet, so the methods are present but no-op / faithful best-effort.
+    // The renderer calls these optional Mini Player / tray-settings methods.
+    // The Tauri shell does not implement a separate mini window yet, so the
+    // methods are present but no-op / faithful best-effort.
     toggleMiniPlayer: (): Promise<boolean> => Promise.resolve(false),
 
     setMiniAlwaysOnTop: (_value: boolean): Promise<void> => Promise.resolve(),

@@ -1,8 +1,9 @@
 {
   "name": "melo",
-  "version": "0.3.7",
+  "version": "0.1.0",
+  "private": true,
   "packageManager": "bun@1.3.14",
-  "description": "MELO — fast YouTube music player for Windows, macOS, and Linux, powered by mpv and yt-dlp.",
+  "description": "MELO — lightweight Tauri desktop YouTube Music player for Windows, powered by WebView2, mpv and yt-dlp.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/prr006/music#readme",
@@ -13,69 +14,15 @@
   "bugs": {
     "url": "https://github.com/prr006/music/issues"
   },
-  "bin": {
-    "melo": "bin/melo"
-  },
-  "files": [
-    "bin/melo",
-    "scripts/install-runtime-deps.js",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
-    "postinstall": "node scripts/install-runtime-deps.js",
-    "start": "bun src/index.ts",
-    "dev": "bun --watch src/index.ts",
-    "build": "bun scripts/build.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "set-version": "bun scripts/set-version.ts",
-    "check:packaging": "bun test tests/packaging.test.ts",
-    "check:tarballs": "bun scripts/check-tarballs.ts",
-    "check:npm-install": "bun scripts/check-npm-install.ts",
-    "check:control-cli": "bun scripts/check-control-cli.ts",
     "fetch:runtime": "bun scripts/fetch-desktop-runtime.ts",
-    "package:electron": "npm --prefix gui run package",
-    "package:lightweight": "npm --prefix lightweight run package:lightweight",
     "prepare:lightweight-runtime": "node scripts/prepare-lightweight-runtime.js",
     "validate:lightweight": "node scripts/validate-lightweight-config.js",
-    "measure:package-size": "node scripts/measure-package-size.js"
+    "minimize:mpv": "node scripts/minimize-mpv.js",
+    "measure:package-size": "node scripts/measure-package-size.js",
+    "package:lightweight": "npm --prefix lightweight run package:lightweight"
   },
-  "optionalDependencies": {
-    "melo-darwin-arm64": "0.3.7",
-    "melo-darwin-x64": "0.3.7",
-    "melo-linux-x64": "0.3.7",
-    "melo-linux-arm64": "0.3.7",
-    "melo-win32-x64": "0.3.7"
-  },
-  "keywords": [
-    "melo",
-    "youtube",
-    "youtube-music",
-    "music",
-    "music-player",
-    "cli",
-    "command-line",
-    "terminal",
-    "terminal-player",
-    "tui",
-    "player",
-    "mpv",
-    "mpv-player",
-    "yt-dlp",
-    "offline-music",
-    "playlist-manager",
-    "privacy",
-    "private",
-    "cross-platform",
-    "windows",
-    "macos",
-    "linux",
-    "bun"
-  ],
   "devDependencies": {
-    "@types/bun": "latest",
-    "chalk": "^5.6.2",
-    "typescript": "^5"
+    "@types/bun": "latest"
   }
 }

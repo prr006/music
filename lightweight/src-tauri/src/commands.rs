@@ -237,14 +237,12 @@ async fn backend_send_impl(
             ControlResponse::ok("Playback stopped.")
         }
         "quit" => {
-            let cloned = state.clone();
-            let app_handle = app.clone();
-            tauri::async_runtime::spawn(async move {
-                let mut engine = cloned.engine.lock().await;
-                engine.shutdown().await;
-                drop(engine);
-                app_handle.exit(0);
-            });
+            let mut engine = state.engine.lock().await;
+            engine.shutdown().await;
+            drop(engine);
+            // Exit synchronously rather than on a fire-and-forget task so the
+            // shutdown can never be skipped during process teardown.
+            app.exit(0);
             ControlResponse::ok("Closing.")
         }
         "add-to-queue" => {

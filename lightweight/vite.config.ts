@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Reuse the existing Electron renderer exactly as-is. The Tauri bridge is
-// imported from gui/src/renderer/main.tsx and is a no-op in Electron.
+// Build the shared MELO renderer from gui/src/renderer. The Tauri bridge is
+// imported from gui/src/renderer/main.tsx and wires window.api to Tauri.
 export default defineConfig({
   root: resolve(__dirname, '../gui/src/renderer'),
   base: './',

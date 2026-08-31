@@ -2,9 +2,9 @@
 /**
  * Prepare the self-contained MELO runtime for the Tauri/WebView2 bundle.
  *
- * The source is the already-verified Electron runtime (default
- * `gui/resources/runtime`). This script never modifies that source tree. It
- * copies only the files MELO uses into `lightweight/resources/bin`:
+ * The source is the already-verified desktop runtime (default
+ * `lightweight/resources/runtime`). This script never modifies that source
+ * tree. It copies only the files MELO uses into `lightweight/resources/bin`:
  *
  *   - yt-dlp.exe
  *   - mpv/mpv.exe
@@ -20,7 +20,7 @@
  *   node scripts/prepare-lightweight-runtime.js --allow-unpinned
  *
  * Flags:
- *   --from <dir>           source runtime directory (default gui/resources/runtime)
+ *   --from <dir>           source runtime directory (default lightweight/resources/runtime)
  *   --allow-unpinned       development mode: allows missing source/staging and skips
  *                          mandatory checks. Never use this for a release package.
  *   --require-hash         fail if yt-dlp.sha256 is not recorded in runtime.lock.json
@@ -52,7 +52,7 @@ const requireHash = flags.has('--require-hash');
 const allowNoDll = flags.has('--allow-no-dll');
 const fromFromArg = positional.find(() => true);
 
-const defaultSource = join(root, 'gui', 'resources', 'runtime');
+const defaultSource = join(root, 'lightweight', 'resources', 'runtime');
 const requestedSource = process.env.MELO_RUNTIME_SRC || fromFromArg;
 const sourceRoot = resolve(requestedSource || defaultSource);
 const stageRoot = join(root, 'lightweight', 'resources', 'bin');
@@ -144,9 +144,9 @@ function readLock() {
 async function main() {
   console.log('── MELO lightweight runtime prepare ─────────────────────');
 
-  // Source discovery. When using the default runtime location, also accept the
-  // older Electron layout where the runtime sits directly under gui/resources.
-  const sourceRoots = requestedSource ? [sourceRoot] : [sourceRoot, join(root, 'gui', 'resources')];
+  // Source discovery. When using the default runtime location, also accept a
+  // layout where the runtime sits directly under lightweight/resources.
+  const sourceRoots = requestedSource ? [sourceRoot] : [sourceRoot, join(root, 'lightweight', 'resources')];
   let sourceMpvDir = null;
   let sourceYtDlp = null;
   let resolvedSourceRoot = sourceRoot;
@@ -182,7 +182,7 @@ async function main() {
       if (!srcMpvOk) eprintln('  missing mpv/mpv.exe or bin/mpv/mpv.exe');
       if (!srcYtOk) eprintln('  missing yt-dlp.exe or bin/yt-dlp.exe');
       eprintln();
-      eprintln('Place the verified Electron runtime there, or pass --from <dir> / --allow-unpinned.');
+      eprintln('Place the verified desktop runtime there, or pass --from <dir> / --allow-unpinned.');
       process.exit(1);
     }
   }

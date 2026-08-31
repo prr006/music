@@ -4,4 +4,5 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/.cargo/
 resources/bin/
+resources/runtime/
 resources/.melo-runtime-fingerprint.json

@@ -6,10 +6,11 @@ are staged into `lightweight/resources/bin` by
 
 ## Source of truth
 
-The default source is the already-verified Electron runtime:
+The default source is the verified desktop runtime staged by
+`bun scripts/fetch-desktop-runtime.ts`:
 
 ```
-gui/resources/runtime/
+lightweight/resources/runtime/
   mpv/
     mpv.exe
     ...any DLLs actually loaded by mpv...
