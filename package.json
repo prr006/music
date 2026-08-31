@@ -34,7 +34,12 @@
     "check:tarballs": "bun scripts/check-tarballs.ts",
     "check:npm-install": "bun scripts/check-npm-install.ts",
     "check:control-cli": "bun scripts/check-control-cli.ts",
-    "fetch:runtime": "bun scripts/fetch-desktop-runtime.ts"
+    "fetch:runtime": "bun scripts/fetch-desktop-runtime.ts",
+    "package:electron": "npm --prefix gui run package",
+    "package:lightweight": "npm --prefix lightweight run package:lightweight",
+    "prepare:lightweight-runtime": "node scripts/prepare-lightweight-runtime.js",
+    "validate:lightweight": "node scripts/validate-lightweight-config.js",
+    "measure:package-size": "node scripts/measure-package-size.js"
   },
   "optionalDependencies": {
     "melo-darwin-arm64": "0.3.7",

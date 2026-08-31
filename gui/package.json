@@ -12,6 +12,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "fetch:runtime": "cd .. && bun scripts/fetch-desktop-runtime.ts win32-x64",
     "package": "npm run fetch:runtime && npm run build:backend && electron-vite build && electron-builder --win --config",
+    "package:electron": "npm run fetch:runtime && npm run build:backend && electron-vite build && electron-builder --win --config",
+    "package:lightweight": "npm --prefix ../lightweight run package:lightweight",
+    "build:lightweight": "npm --prefix ../lightweight run build:renderer",
     "package:dir": "npm run fetch:runtime && npm run build:backend && electron-vite build && electron-builder --win --dir --config"
   },
   "dependencies": {

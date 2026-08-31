@@ -28,7 +28,7 @@ export function ArtworkStage({ track, playing, loading, onTogglePause }: Artwork
 
     const id = track.id;
     wantId.current = id;
-    const nextSrc = artworkFor(track, true);
+    const nextSrc = artworkFor(track, false);
 
     const apply = (src: string) => {
       if (wantId.current !== id) return;

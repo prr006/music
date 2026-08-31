@@ -19,6 +19,8 @@ coverage/
 
 # Bun
 package-lock.json
+# npm lockfile for the Tauri/WebView2 lightweight build (kept for reproducibility)
+!lightweight/package-lock.json
 # Electron build output
 out/
 gui/out/
@@ -29,6 +31,17 @@ gui/resources/*.exe
 # Fetched desktop runtime (mpv / yt-dlp). Keep the folder placeholder.
 gui/resources/runtime/**
 !gui/resources/runtime/.gitkeep
+
+# Tauri / lightweight build output
+lightweight/dist/
+lightweight/src-tauri/target/
+lightweight/src-tauri/gen/
+
+# Bundled MELO runtime binaries (never commit third-party executables)
+lightweight/resources/bin/*.exe
+lightweight/resources/bin/*.dll
+lightweight/resources/bin/mpv/
+lightweight/resources/.melo-runtime-fingerprint.json
 
 # Windows reserved device
 nul/
