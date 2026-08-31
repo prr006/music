@@ -171,7 +171,7 @@ impl Mpv {
         let deadline = Instant::now() + IPC_CONNECT_TIMEOUT;
         let mut last_error = String::new();
         loop {
-            match self.request(json!(["get_property", "version"]).as_array().cloned().unwrap_or_default()).await {
+            match self.request(json!(["get_property", "mpv-version"]).as_array().cloned().unwrap_or_default()).await {
                 Ok(_) => break,
                 Err(e) => {
                     last_error = e;
