@@ -1,5 +1,5 @@
 {
-  "$comment": "Pinned MELO runtime, matching the verified Electron/desktop runtime in runtime-manifest.json. prepare:runtime copies from gui/resources/runtime by default and verifies yt-dlp.exe against sha256. mpv is pinned by version/url; its directory is staged conservatively (all DLLs kept).",
+  "$comment": "Pinned MELO runtime, matching the verified desktop runtime in runtime-manifest.json. prepare:runtime copies from lightweight/resources/runtime by default and verifies yt-dlp.exe against sha256. mpv is pinned by version/url; its directory is staged conservatively (all DLLs kept).",
   "yt-dlp": {
     "description": "Standalone Windows yt-dlp.exe staged into lightweight/resources/bin/yt-dlp.exe",
     "version": "2026.08.19",

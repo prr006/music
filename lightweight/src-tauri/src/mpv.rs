@@ -92,10 +92,10 @@ impl Mpv {
     pub fn new() -> Self {
         let pid = std::process::id();
         let pipe = if cfg!(windows) {
-            format!(r"\\.\pipe\ytmusic-player-mpv-{pid}")
+            format!(r"\\.\pipe\melo-mpv-{pid}")
         } else {
             let tmp = std::env::temp_dir();
-            tmp.join(format!("ytmusic-player-mpv-{pid}.sock")).to_string_lossy().to_string()
+            tmp.join(format!("melo-mpv-{pid}.sock")).to_string_lossy().to_string()
         };
         Mpv {
             pipe,

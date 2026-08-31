@@ -35,7 +35,6 @@ function readJson(path) {
 }
 
 const pkg = readJson(join(lw, 'package.json'));
-const guiPkg = readJson(join(root, 'gui', 'package.json'));
 const tauri = readJson(join(srcTauri, 'tauri.conf.json'));
 const caps = readJson(join(srcTauri, 'capabilities', 'default.json'));
 const cargo = existsSync(join(srcTauri, 'Cargo.toml'))
@@ -53,13 +52,6 @@ if (pkg) {
   if (!pkg.scripts?.['package:lightweight']) warnings.push('missing package:lightweight script');
   if (!pkg.scripts?.['prepare:runtime']) warnings.push('missing prepare:runtime script');
   if (!pkg.scripts?.['typecheck']) warnings.push('missing typecheck script');
-}
-
-if (guiPkg) {
-  const scripts = guiPkg.scripts || {};
-  if (typeof scripts.package !== 'string') warnings.push('gui "package" script changed; Electron fallback should keep it intact');
-  if (!scripts['package:electron']) warnings.push('gui missing package:electron');
-  if (!scripts['package:lightweight']) warnings.push('gui missing package:lightweight');
 }
 
 if (tauri) {
