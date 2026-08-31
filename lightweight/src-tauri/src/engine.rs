@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use chrono::Utc;
 use rand::seq::SliceRandom;
@@ -6,9 +7,10 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::config;
+use crate::lyrics::LyricsProvider;
 use crate::mpv::Mpv;
 use crate::runtime::RuntimePaths;
-use crate::types::{AppSettings, LyricsLine, LyricsResult, Playlist, QueueItem, QueueSource, RepeatMode, Track};
+use crate::types::{AppSettings, LyricsResult, Playlist, QueueItem, QueueSource, RepeatMode, Track};
 use crate::ytdlp::YtDlp;
 
 const REFILL_THRESHOLD: usize = 5;
@@ -22,6 +24,7 @@ pub struct RefillRequest {
 pub struct Engine {
     pub mpv: Mpv,
     pub ytdlp: YtDlp,
+    pub(crate) lyrics: Arc<LyricsProvider>,
     pub events: UnboundedSender<Value>,
     pub current_track: Option<Track>,
     pub queue: Vec<QueueItem>,
@@ -41,6 +44,7 @@ impl Engine {
         Engine {
             mpv: Mpv::new(),
             ytdlp: YtDlp::new(runtime.ytdlp.clone()),
+            lyrics: Arc::new(LyricsProvider::new(runtime.ytdlp.clone())),
             events,
             current_track: None,
             queue: vec![],
@@ -406,15 +410,9 @@ impl Engine {
         self.emit(json!({ "type": "settings-changed", "settings": settings }));
     }
 
-    pub fn lyrics_for(&self, track: &Track) -> LyricsResult {
-        // The lightweight backend does not fetch timed lyrics yet. Returning an
-        // empty result keeps the shared renderer's lyrics surface functional
-        // without blocking playback.
-        LyricsResult {
-            track_id: track.id.clone(),
-            lines: Vec::<LyricsLine>::new(),
-            source: None,
-        }
+    #[allow(dead_code)]
+    pub async fn lyrics_for(&self, track: &Track) -> LyricsResult {
+        self.lyrics.lyrics_for(track).await
     }
 
     pub fn set_shuffle(&mut self, enabled: bool) {

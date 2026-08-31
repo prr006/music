@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 mod commands;
 mod config;
 mod engine;
+mod lyrics;
 mod mpv;
 mod runtime;
 mod types;

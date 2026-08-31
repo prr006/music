@@ -382,15 +382,18 @@ async fn backend_send_impl(
             ControlResponse::ok("Settings saved.")
         }
         "get-lyrics" => {
-            let engine = state.engine.lock().await;
-            let track = match command.get("track").cloned().and_then(|v| serde_json::from_value::<Track>(v).ok()) {
-                Some(track) => track,
-                None => match engine.current_track.clone() {
+            let (track, lyrics_provider) = {
+                let engine = state.engine.lock().await;
+                let track = match command.get("track").cloned().and_then(|v| serde_json::from_value::<Track>(v).ok()) {
                     Some(track) => track,
-                    None => return ControlResponse::data("No lyrics.", json!({ "trackId": "", "lines": [], "source": null })),
-                },
+                    None => match engine.current_track.clone() {
+                        Some(track) => track,
+                        None => return ControlResponse::data("No lyrics.", json!({ "trackId": "", "lines": [], "source": null })),
+                    },
+                };
+                (track, engine.lyrics.clone())
             };
-            let lyrics = engine.lyrics_for(&track);
+            let lyrics = lyrics_provider.lyrics_for(&track).await;
             ControlResponse::data("Lyrics.", json!(lyrics))
         }
         // Backwards compatibility with the earlier lightweight command names.
