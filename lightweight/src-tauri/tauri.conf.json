@@ -42,7 +42,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../resources/bin/": "bin/"
+      "../resources/bin/": "bin/",
+      "../resources/licenses/": "licenses/"
     },
     "windows": {
       "webviewInstallMode": {

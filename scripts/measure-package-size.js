@@ -99,19 +99,11 @@ const installerDir = o.installer || resolve(root, 'lightweight', 'src-tauri', 't
 // Explicit paths are resolved against the shell cwd (matching how scripts run
 // from either the repo root or lightweight/).
 const appDir = o.app;
-const electronPaths = [
-  resolve(root, 'gui', 'out'),
-  resolve(root, 'gui', 'resources'),
-  resolve(root, 'gui', 'dist'),
-].filter((p) => o.installer || existsSync(p));
 
 console.log('── MELO package size report ─────────────────────────────────────');
 
 const installers = { bytes: 0, files: [] };
 collectInstallers(installerDir, installers);
-for (const electronPath of electronPaths) {
-  collectInstallers(electronPath, installers);
-}
 
 function report(path, label) {
   const { bytes, files } = walk(path);
@@ -121,9 +113,6 @@ function report(path, label) {
 
 // ─── Detailed sections ─────────────────────────────────────────────────────
 console.log('\n── Components (source/build trees) ──────────────────────────────');
-for (const electronPath of electronPaths) {
-  report(electronPath, 'electron fallback');
-}
 const frontend = report(frontendDir, 'lightweight frontend');
 const backend = report(backendDir, 'lightweight backend');
 const runtime = report(runtimeDir, 'lightweight runtime');
@@ -137,7 +126,7 @@ const ytdlp = report(ytdlpPath, '  └─ yt-dlp.exe');
 let webviewSize = 0;
 let webviewFiles = [];
 const webviewPatterns = [/WebView2/i, /EBWebView/i, /msedgewebview2/i, /MicrosoftEdgeWebView2/i];
-for (const base of [frontendDir, backendDir, runtimeDir, appDir, ...electronPaths].filter((p) => p && existsSync(p))) {
+for (const base of [frontendDir, backendDir, runtimeDir, appDir].filter((p) => p && existsSync(p))) {
   for (const file of walkFiles(base)) {
     const name = file.replace(/\\/g, '/').split('/').pop() || '';
     if (webviewPatterns.some((re) => re.test(name))) {

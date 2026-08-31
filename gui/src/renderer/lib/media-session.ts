@@ -31,8 +31,8 @@ export function syncMediaSession(
   });
   session.playbackState = playing ? 'playing' : 'paused';
 
-  // Play/pause/next/prev are handled by Electron globalShortcut so a headset
-  // key cannot toggle twice. Seek is renderer-only.
+  // Play/pause/next/prev are handled at the app level so a headset key cannot
+  // toggle twice. Seek is renderer-only.
   const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
     ['seekbackward', details => actions.seek(-(details.seekOffset || 10))],
     ['seekforward', details => actions.seek(details.seekOffset || 10)],

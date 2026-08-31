@@ -1,11 +1,9 @@
-# MELO lightweight desktop build
+# MELO desktop build (Tauri)
 
-Windows-first Tauri 2 desktop implementation. It reuses the existing
+The MELO desktop application: a Windows-first Tauri 2 app that reuses the
 React/TypeScript renderer from `../gui/src/renderer`, runs `mpv` and `yt-dlp`
 as child processes from a Rust backend, and uses the system WebView2 runtime
 instead of shipping Chromium.
-
-The Electron app remains the fallback and is not modified at runtime.
 
 ## Prerequisites (Windows build host)
 
@@ -21,14 +19,14 @@ The Electron app remains the fallback and is not modified at runtime.
 cd lightweight
 npm install
 node ../scripts/validate-lightweight-config.js
-node ../scripts/prepare-lightweight-runtime.js   # copies from gui/resources/runtime
+node ../scripts/prepare-lightweight-runtime.js   # copies from lightweight/resources/runtime
 npm run dev
 ```
 
 `prepare-lightweight-runtime.js` is the single place that stages the Windows
-runtime into `lightweight/resources/bin`. Its default source is the already
-verified Electron runtime directory `gui/resources/runtime`; it never modifies
-that source tree:
+runtime into `lightweight/resources/bin`. Its default source is the verified
+desktop runtime directory `lightweight/resources/runtime` (populated by
+`bun scripts/fetch-desktop-runtime.ts`); it never modifies that source tree:
 
 ```bash
 node ../scripts/prepare-lightweight-runtime.js                          # production: verifies yt-dlp SHA-256
@@ -48,10 +46,7 @@ Do not ship that extra `--allow-unpinned` flag.
 ## Packaging
 
 ```bash
-# From gui/ (Electron remains untouched)
-npm run package:electron
-
-# From gui/ or lightweight/
+# From the repository root
 npm run package:lightweight
 ```
 
@@ -61,13 +56,11 @@ npm run package:lightweight
 3. `build:renderer` (Vite build of the shared renderer)
 4. `tauri build` (NSIS installer)
 
-It never builds the Electron/Bun path.
-
 ## Layout
 
 - `src-tauri` — Rust backend (mpv IPC + yt-dlp + persistence + command surface)
 - `resources/bin` — bundled `mpv` and `yt-dlp.exe` (git-ignored)
-- `dist/renderer` — Vite output of the reused Electron renderer
+- `dist/renderer` — Vite output of the shared renderer
 - `runtime.lock.json` — pinned `yt-dlp` / `mpv` version and SHA-256
 
 ## Runtime resolution
@@ -88,12 +81,9 @@ being installed system-wide.
 Run:
 
 ```bash
-node scripts/measure-package-size.js
+node ../scripts/measure-package-size.js
 ```
 
 This reports installed/unpacked size and installer (NSIS/MSI) size separately.
 The report only measures paths that already exist; it does not estimate missing
-artifacts. When the Electron build is also present on the host, it is listed as
-`electron fallback` (`gui/out`, `gui/resources`, `gui/dist`) so you can compare
-the baseline against the lightweight build and report both installer and
-installed/unpacked numbers honestly.
+artifacts.

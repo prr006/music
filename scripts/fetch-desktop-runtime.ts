@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST_PATH = join(ROOT, 'runtime-manifest.json');
-const OUT_DIR = join(ROOT, 'gui', 'resources', 'runtime');
+const OUT_DIR = join(ROOT, 'lightweight', 'resources', 'runtime');
 
 export function sha256Buffer(data: Uint8Array): string {
   return createHash('sha256').update(data).digest('hex');

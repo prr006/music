@@ -10,9 +10,10 @@ export interface Track {
   uploader?: string;
 }
 
-// ─── Control Protocol (shared between GUI and backend) ────────────────────
-// This type must stay in sync with src/cli.ts ControlCommand.
-// Any change here or in the backend MUST be mirrored on the other side.
+// ─── Control Protocol (shared between renderer and backend) ───────────────
+// This type must stay in sync with the Rust backend command surface
+// (lightweight/src-tauri/src/commands.rs). Any change here or in the backend
+// MUST be mirrored on the other side.
 
 export type ControlCommand =
   | { type: 'play'; query: string }
