@@ -5,12 +5,14 @@ import {
   Volume2, VolumeX, Heart, Plus, List, Mic2, Sun, Moon, Monitor,
 } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
+import { useSmoothPosition } from '../hooks/useSmoothPosition';
 import type { Theme } from '../types';
 import type { Track } from '../../shared/types';
 import { fmt, fmtRemaining } from '../lib/media';
 
 interface NowPlayingPanelProps {
   state: PlayerState;
+  getPosition: () => number;
   theme: Theme;
   queueOpen: boolean;
   lyricsOpen: boolean;
@@ -120,15 +122,16 @@ function ProgressBar({
 }
 
 export function NowPlayingPanel({
-  state, theme, queueOpen, lyricsOpen,
+  state, getPosition, theme, queueOpen, lyricsOpen,
   onTogglePause, onNext, onPrevious, onSeekTo,
   onSetVolume, onToggleMute, onToggleShuffle, onCycleRepeat,
   onToggleFavorite, onAddToQueue, onToggleQueue, onToggleLyrics, onCycleTheme,
 }: NowPlayingPanelProps) {
   const {
-    currentTrack, playing, loading, position, duration,
+    currentTrack, playing, loading, duration,
     shuffle, repeat, volume, muted, favorites,
   } = state;
+  const position = useSmoothPosition(playing, loading, duration, getPosition);
 
   const isFavorited = !!currentTrack && favorites.some(f => f.id === currentTrack.id);
   const RI = repeat === 'one' ? Repeat1 : Repeat;

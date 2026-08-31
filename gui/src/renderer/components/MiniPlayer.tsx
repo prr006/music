@@ -1,9 +1,11 @@
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
 import { artworkFor, fmt, fmtRemaining } from '../lib/media';
+import { useSmoothPosition } from '../hooks/useSmoothPosition';
 
 interface MiniPlayerProps {
   state: PlayerState;
+  getPosition: () => number;
   onTogglePause: () => void;
   onNext: () => void;
   onPrevious: () => void;
@@ -12,9 +14,10 @@ interface MiniPlayerProps {
 }
 
 export function MiniPlayer({
-  state, onTogglePause, onNext, onPrevious, onSeekTo, onOpenHome,
+  state, getPosition, onTogglePause, onNext, onPrevious, onSeekTo, onOpenHome,
 }: MiniPlayerProps) {
-  const { currentTrack, playing, loading, position, duration } = state;
+  const { currentTrack, playing, loading, duration } = state;
+  const position = useSmoothPosition(playing, loading, duration, getPosition);
   if (!currentTrack) return null;
 
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;

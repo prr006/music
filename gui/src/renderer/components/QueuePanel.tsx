@@ -3,6 +3,7 @@ import { X, List, Mic2, GripVertical } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
 import type { Track, QueueItem, LyricsLine } from '../../shared/types';
 import { artworkFor, fmt } from '../lib/media';
+import { useSmoothPosition } from '../hooks/useSmoothPosition';
 
 type RightTab = 'queue' | 'lyrics';
 
@@ -11,6 +12,7 @@ interface QueuePanelProps {
   tab: RightTab;
   onTab: (tab: RightTab) => void;
   state: PlayerState;
+  getPosition: () => number;
   onClose: () => void;
   onPlayIndex: (index: number) => void;
   onClear: () => void;
@@ -33,9 +35,10 @@ function activeLyricIndex(lines: LyricsLine[], positionSec: number): number {
 }
 
 export function QueuePanel({
-  open, tab, onTab, state, onClose, onPlayIndex, onClear, onRemove, onMove, onSavePlaylist, onPlayNext,
+  open, tab, onTab, state, getPosition, onClose, onPlayIndex, onClear, onRemove, onMove, onSavePlaylist, onPlayNext,
 }: QueuePanelProps) {
-  const { currentTrack, queue, playing, lyrics, lyricsLoading, position } = state;
+  const { currentTrack, queue, playing, loading, duration, lyrics, lyricsLoading } = state;
+  const position = useSmoothPosition(playing, loading, duration, getPosition);
   const hasQueue = queue.length > 0;
   const [playlistName, setPlaylistName] = useState('');
   const [dragFrom, setDragFrom] = useState<number | null>(null);
