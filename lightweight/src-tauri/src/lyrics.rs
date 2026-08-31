@@ -70,7 +70,7 @@ impl LyricsProvider {
 
         // 1. Exact match endpoint first.
         if let Some(url) = exact_lyrics_url(track, &title, &artist) {
-            if let Some(Some(body)) = request_json(&url).await? {
+            if let Some(body) = request_json(&url).await? {
                 if let Some(lines) = parse_response(&body) {
                     return Ok(Some(lines));
                 }
@@ -86,7 +86,7 @@ impl LyricsProvider {
         ];
         for (t, a) in structured {
             let url = search_url(&t, &a);
-            if let Some(Some(body)) = request_json(&url).await? {
+            if let Some(body) = request_json(&url).await? {
                 if let Some(items) = body.as_array() {
                     results.extend(items.clone());
                 }
@@ -96,7 +96,7 @@ impl LyricsProvider {
         // 3. Broad fuzzy search fallback.
         let q = format!("{clean_title} {artist}");
         let q_url = q_search_url(&q);
-        if let Some(Some(body)) = request_json(&q_url).await? {
+        if let Some(body) = request_json(&q_url).await? {
             if let Some(items) = body.as_array() {
                 results.extend(items.clone());
             }
