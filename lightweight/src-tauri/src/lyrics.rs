@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use serde_json::Value;
@@ -13,15 +13,20 @@ const MIN_MATCH_SCORE: i64 = 100;
 /// Lightweight Rust lyrics provider backed by LRCLIB's public API.
 ///
 /// Lookup strategy:
-///  1. Exact `/api/get` using the current track's title/artist plus album and
-///     duration when available. This is the highest-precision match.
-///  2. `/api/search?track_name=...&artist_name=...` with both the original and
-///     cleaned title/artist, because LRCLIB stores artist names without
-///     YouTube " - Topic" suffixes and titles without "(Official ...)" markers.
+///  1. Exact `/api/get` using the cleaned title/artist (plus album and
+///     duration when available). This is the highest-precision match.
+///  2. Structured `/api/search?track_name=...&artist_name=...` over sensible
+///     combinations of cleaned/original title and artist, because LRCLIB
+///     stores artist names without YouTube " - Topic"/"VEVO" suffixes and
+///     titles without "(Official ...)" markers.
 ///  3. `/api/search?q=<title> <artist>` as a final broad fallback.
-///  4. Score the returned records and prefer synced lyrics, then plain lyrics.
+///  4. Score every candidate and require BOTH a title and an artist match so
+///     an obviously-wrong result is never returned just because it is the
+///     closest hit. Synced lyrics are preferred over plain lyrics.
 ///
-/// Missing/error cases always return the existing empty `LyricsResult`.
+/// Missing/error cases always return the existing empty `LyricsResult`. All
+/// network work runs on a blocking thread so the playback thread is never
+/// blocked.
 pub struct LyricsProvider {
     cache: Mutex<HashMap<String, LyricsResult>>,
 }
@@ -45,65 +50,80 @@ impl LyricsProvider {
         };
 
         let result = match self.fetch_and_parse(track).await {
-            Ok(Some(lines)) => LyricsResult {
+            Some(lines) => LyricsResult {
                 track_id: track.id.clone(),
                 lines,
                 source: Some("lrclib".to_string()),
             },
-            Ok(_) => empty.clone(),
-            Err(e) => {
-                log::warn!("lrclib lookup failed for {}: {e}", track.id);
-                empty.clone()
-            }
+            None => empty.clone(),
         };
 
         self.cache.lock().await.insert(track.id.clone(), result.clone());
         result
     }
 
-    async fn fetch_and_parse(&self, track: &Track) -> anyhow::Result<Option<Vec<LyricsLine>>> {
-        let title = track.title.trim();
-        let artist = clean_artist(track.uploader.as_deref().unwrap_or_default().trim());
-        if title.is_empty() || artist.is_empty() {
-            return Ok(None);
+    async fn fetch_and_parse(&self, track: &Track) -> Option<Vec<LyricsLine>> {
+        let raw_title = track.title.trim();
+        let raw_artist = track.uploader.as_deref().unwrap_or_default().trim();
+        if raw_title.is_empty() || raw_artist.is_empty() {
+            return None;
         }
 
-        // 1. Exact match endpoint first.
-        if let Some(url) = exact_lyrics_url(track, &title, &artist) {
-            if let Some(body) = request_json(&url).await? {
-                if let Some(lines) = parse_response(&body) {
-                    return Ok(Some(lines));
+        let clean_title = clean_title(raw_title);
+        let clean_artist = clean_artist(raw_artist);
+
+        let titles = dedup_str(&[clean_title.as_str(), raw_title]);
+        let artists = dedup_str(&[clean_artist.as_str(), raw_artist]);
+
+        // 1. Exact `/api/get`. The cleaned pair matches how LRCLIB stores
+        //    metadata, so try it first; the original title is a fallback.
+        for t in &titles {
+            for a in &artists {
+                if let Some(url) = exact_lyrics_url(track, t, a) {
+                    if let Some(body) = request_json(&url).await {
+                        if let Some(lines) = parse_response(&body) {
+                            return Some(lines);
+                        }
+                    }
                 }
             }
         }
 
-        // 2. Structured search with original and cleaned metadata.
-        let clean_title = clean_title(title);
+        // 2. Structured search over cleaned/original combinations.
         let mut results: Vec<Value> = Vec::new();
-        let structured = [
-            (title.to_string(), artist.clone()),
-            (clean_title.clone(), artist.clone()),
-        ];
-        for (t, a) in structured {
-            let url = search_url(&t, &a);
-            if let Some(body) = request_json(&url).await? {
-                if let Some(items) = body.as_array() {
-                    results.extend(items.clone());
+        for t in &titles {
+            for a in &artists {
+                let url = search_url(t, a);
+                if let Some(body) = request_json(&url).await {
+                    if let Some(items) = body.as_array() {
+                        results.extend(items.clone());
+                    }
                 }
             }
         }
 
-        // 3. Broad fuzzy search fallback.
-        let q = format!("{clean_title} {artist}");
-        let q_url = q_search_url(&q);
-        if let Some(body) = request_json(&q_url).await? {
+        // 3. Broad fuzzy search fallback using the cleaned forms.
+        let q = format!("{clean_title} {clean_artist}");
+        if let Some(body) = request_json(&q_search_url(&q)).await {
             if let Some(items) = body.as_array() {
                 results.extend(items.clone());
             }
         }
 
-        Ok(pick_best(&results, track, &clean_title, &artist))
+        pick_best(&results, track, &clean_title, &clean_artist)
     }
+}
+
+fn dedup_str<'a>(items: &[&'a str]) -> Vec<&'a str> {
+    let mut out: Vec<&'a str> = Vec::new();
+    for item in items {
+        let trimmed = item.trim();
+        if trimmed.is_empty() || out.iter().any(|e| *e == trimmed) {
+            continue;
+        }
+        out.push(trimmed);
+    }
+    out
 }
 
 fn exact_lyrics_url(track: &Track, title: &str, artist: &str) -> Option<String> {
@@ -151,37 +171,50 @@ fn percent_encode(input: &str) -> String {
     out
 }
 
-async fn request_json(url: &str) -> anyhow::Result<Option<Value>> {
+/// Fetch a URL on a blocking thread so the async runtime stays responsive.
+/// Never errors: any network/parse/status problem collapses to `None`.
+async fn request_json(url: &str) -> Option<Value> {
     let url = url.to_string();
     match tokio::task::spawn_blocking(move || fetch_json(&url)).await {
-        Ok(result) => result,
-        Err(e) => Err(anyhow::anyhow!("lrclib fetch aborted: {e}")),
+        Ok(value) => value,
+        Err(e) => {
+            log::warn!("lrclib fetch task aborted: {e}");
+            None
+        }
     }
 }
 
-fn fetch_json(url: &str) -> anyhow::Result<Option<Value>> {
-    let response = ureq::get(url)
+fn fetch_json(url: &str) -> Option<Value> {
+    let response = match ureq::get(url)
         .set("User-Agent", USER_AGENT)
         .timeout(HTTP_TIMEOUT)
-        .call();
-    let response = match response {
+        .call()
+    {
         Ok(response) => response,
         Err(e) => {
             log::debug!("lrclib request failed: {e}");
-            return Ok(None);
+            return None;
         }
     };
     let status = response.status();
-    if status == 404 {
-        return Ok(None);
-    }
     if !(200..300).contains(&status) {
-        return Err(anyhow::anyhow!("lrclib returned {status}"));
+        log::debug!("lrclib returned {status} for {url}");
+        return None;
     }
-    let body = response
-        .into_string()
-        .map_err(|e| anyhow::anyhow!("lrclib response body invalid: {e}"))?;
-    Ok(Some(serde_json::from_str(&body)?))
+    let body = match response.into_string() {
+        Ok(body) => body,
+        Err(e) => {
+            log::debug!("lrclib response body invalid: {e}");
+            return None;
+        }
+    };
+    match serde_json::from_str(&body) {
+        Ok(value) => Some(value),
+        Err(e) => {
+            log::debug!("lrclib response parse failed: {e}");
+            None
+        }
+    }
 }
 
 fn pick_best(
@@ -198,8 +231,10 @@ fn pick_best(
         if lines.is_empty() {
             continue;
         }
-        let score = score_result(result, track, source_title, source_artist);
-        if score < MIN_MATCH_SCORE || !candidate_acceptable(result, track, source_title, source_artist) {
+        let Some(score) = score_result(result, track, source_title, source_artist) else {
+            continue;
+        };
+        if score < MIN_MATCH_SCORE {
             continue;
         }
         if best.as_ref().map_or(true, |(best_score, _)| score > *best_score) {
@@ -209,47 +244,15 @@ fn pick_best(
     best.map(|(_, lines)| lines)
 }
 
-fn candidate_acceptable(
-    result: &Value,
-    track: &Track,
-    source_title: &str,
-    source_artist: &str,
-) -> bool {
-    let result_title = result
-        .get("trackName")
-        .or_else(|| result.get("name"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    let result_artist = result.get("artistName").and_then(Value::as_str).unwrap_or("");
-
-    let n_title = normalize(result_title);
-    let n_source_title = normalize(source_title);
-    let n_artist = normalize(result_artist);
-    let n_source_artist = normalize(source_artist);
-
-    let title_match = n_title == n_source_title
-        || n_source_title.starts_with(n_title.as_str())
-        || n_title.starts_with(n_source_title.as_str());
-    let artist_match = n_artist == n_source_artist
-        || n_artist.contains(n_source_artist.as_str())
-        || n_source_artist.contains(n_artist.as_str());
-    let duration_close = match (result.get("duration").and_then(Value::as_f64), track.duration) {
-        (Some(actual), Some(expected)) => (actual - expected).abs() <= 5.0,
-        // Without a local duration we still trust the search result if either
-        // the title or artist matches; LRCLIB may return a slightly different
-        // duration for the same recording.
-        _ => true,
-    };
-
-    artist_match || (title_match && duration_close)
-}
-
+/// Score a candidate record against the requested track. Returns `None` when
+/// the candidate is not a credible match (no title or artist correspondence),
+/// which prevents obviously-wrong lyrics from being returned.
 fn score_result(
     result: &Value,
     track: &Track,
     source_title: &str,
     source_artist: &str,
-) -> i64 {
+) -> Option<i64> {
     let result_title = result
         .get("trackName")
         .or_else(|| result.get("name"))
@@ -263,26 +266,21 @@ fn score_result(
     let n_artist = normalize(result_artist);
     let n_source_artist = normalize(source_artist);
 
-    let mut score = 0i64;
+    // Both title and artist must correspond; either alone is not enough.
+    let title_score = title_match_score(&n_source_title, &n_title)?;
+    let artist_score = artist_match_score(&n_source_artist, &n_artist)?;
 
-    if n_title == n_source_title
-        || n_source_title.starts_with(n_title.as_str())
-        || n_title.starts_with(n_source_title.as_str())
+    let mut score = title_score + artist_score;
+
+    // Duration is a strong signal when both sides know it.
+    if let (Some(actual), Some(expected)) =
+        (result.get("duration").and_then(Value::as_f64), track.duration)
     {
-        score += 100;
-    }
-
-    let artist_match = n_artist == n_source_artist
-        || n_artist.contains(n_source_artist.as_str())
-        || n_source_artist.contains(n_artist.as_str());
-    if artist_match {
-        score += 80;
-    }
-
-    let result_duration = result.get("duration").and_then(Value::as_f64);
-    if let (Some(actual), Some(expected)) = (result_duration, track.duration) {
         let diff = (actual - expected).abs();
-        if diff <= 2.0 {
+        if diff > 10.0 {
+            // Different recording length — almost certainly the wrong track.
+            return None;
+        } else if diff <= 2.0 {
             score += 40;
         } else if diff <= 5.0 {
             score += 15;
@@ -303,6 +301,7 @@ fn score_result(
         }
     }
 
+    // Prefer synced lyrics, then plain lyrics.
     let has_synced = result
         .get("syncedLyrics")
         .and_then(Value::as_str)
@@ -319,7 +318,76 @@ fn score_result(
         score += 5;
     }
 
-    score
+    Some(score)
+}
+
+/// Compare two normalized title strings. `None` means "not a credible match".
+fn title_match_score(a: &str, b: &str) -> Option<i64> {
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+    if a == b {
+        return Some(100);
+    }
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if short.len() >= 3 && long.contains(short) {
+        return Some(80);
+    }
+    if let Some(s) = subset_score(a, b) {
+        return Some(s);
+    }
+    token_overlap(a, b, 2, 0.6).map(|_| 40)
+}
+
+/// Compare two normalized artist strings. Slightly more lenient than titles
+/// because artist names often carry "feat.", "&", or "The" differences.
+fn artist_match_score(a: &str, b: &str) -> Option<i64> {
+    if a.is_empty() || b.is_empty() {
+        return None;
+    }
+    if a == b {
+        return Some(80);
+    }
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if short.len() >= 3 && long.contains(short) {
+        return Some(60);
+    }
+    if subset_score(a, b).is_some() {
+        return Some(50);
+    }
+    token_overlap(a, b, 1, 0.5).map(|_| 30)
+}
+
+/// Score when one side's tokens are entirely contained in the other's.
+fn subset_score(a: &str, b: &str) -> Option<i64> {
+    let ta: HashSet<&str> = a.split_whitespace().collect();
+    let tb: HashSet<&str> = b.split_whitespace().collect();
+    if ta.is_empty() || tb.is_empty() {
+        return None;
+    }
+    if ta.is_subset(&tb) || tb.is_subset(&ta) {
+        Some(70)
+    } else {
+        None
+    }
+}
+
+/// Score by Jaccard-like token overlap when there are at least `min_common`
+/// shared tokens and the overlap ratio reaches `min_ratio`.
+fn token_overlap(a: &str, b: &str, min_common: usize, min_ratio: f64) -> Option<i64> {
+    let ta: HashSet<&str> = a.split_whitespace().collect();
+    let tb: HashSet<&str> = b.split_whitespace().collect();
+    let common = ta.intersection(&tb).count();
+    let total = ta.union(&tb).count();
+    if total == 0 || common < min_common {
+        return None;
+    }
+    let ratio = common as f64 / total as f64;
+    if ratio >= min_ratio {
+        Some(40)
+    } else {
+        None
+    }
 }
 
 fn parse_response(dump: &Value) -> Option<Vec<LyricsLine>> {
@@ -427,38 +495,61 @@ fn parse_lrc_timestamp(raw: &str) -> Option<f64> {
     Some(((hours * 60.0 + minutes) * 60.0 + seconds) * 1000.0 + ms)
 }
 
-fn clean_title(title: &str) -> String {
-    let trimmed = title.trim();
-    let lower = trimmed.to_lowercase();
-    const SUFFIXES: &[&str] = &[
-        " (official audio)",
-        " (official video)",
-        " (official lyric video)",
-        " (official music video)",
-        " (official audio)",
-        " (lyrics)",
-        " (audio)",
-        " [official audio]",
-        " [official video]",
-        " [official lyric video]",
-        " [lyrics]",
-        " [audio]",
-        " - topic",
+/// Strip the "(Official ...)", "(Lyrics)", "(Live)", "(Remastered)", etc.
+/// markers that YouTube appends but LRCLIB does not store.
+fn clean_title(raw: &str) -> String {
+    let mut s = raw.trim().to_string();
+    const MARKERS: &[&str] = &[
+        "official video",
+        "official audio",
+        "official music video",
+        "official lyric video",
+        "lyric video",
+        "music video",
+        "lyrics",
+        "audio",
+        "video",
+        "live",
+        "remastered",
+        "version",
+        "official",
+        "hd",
+        "vevo",
+        "topic",
     ];
-    for suffix in SUFFIXES {
-        if lower.ends_with(suffix) {
-            return trimmed[..trimmed.len() - suffix.len()].trim().to_string();
+    loop {
+        let mut cut: Option<usize> = None;
+        for (open, close) in [('(', ')'), ('[', ']')] {
+            if !s.ends_with(close) {
+                continue;
+            }
+            if let Some(pos) = s.rfind(open) {
+                let inner = s[pos + 1..s.len() - 1].trim().to_lowercase();
+                if MARKERS.iter().any(|m| *m == inner) {
+                    cut = Some(pos);
+                    break;
+                }
+            }
+        }
+        match cut {
+            Some(pos) => {
+                s = s[..pos].trim_end().to_string();
+            }
+            None => break,
         }
     }
-    trimmed.to_string()
+    s
 }
 
-fn clean_artist(artist: &str) -> String {
-    let trimmed = artist.trim();
+/// Strip the YouTube channel suffixes that LRCLIB never stores.
+fn clean_artist(raw: &str) -> String {
+    let trimmed = raw.trim();
     let lower = trimmed.to_lowercase();
-    for suffix in [" - topic", " topic"] {
+    for suffix in [" - topic", " topic", " - vevo", " vevo", "-vevo", "vevo"] {
         if lower.ends_with(suffix) {
-            return trimmed[..trimmed.len() - suffix.len()].trim().to_string();
+            return trimmed[..trimmed.len() - suffix.len()]
+                .trim_end_matches([' ', '-'])
+                .to_string();
         }
     }
     trimmed.to_string()

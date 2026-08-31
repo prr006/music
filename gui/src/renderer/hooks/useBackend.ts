@@ -151,10 +151,12 @@ export function useBackend() {
 
       switch (e.type) {
         case 'playback-state': {
-          // Authoritative position/volume. Loading stays until track-changed
-          // or the new stream actually starts (playing === true).
+          // Authoritative position/volume/loading. `loading` comes from the
+          // backend (true while a loadfile is in flight) so a failed or stopped
+          // load clears the spinner instead of leaving it stuck.
           const track = e.track as Track | null;
           const playing = e.playing as boolean;
+          const loading = (e.loading as boolean) ?? false;
           set(p => {
             // Reject stale events from a previous track. While we are loading,
             // only the track we are waiting for may update state; once loaded,
@@ -173,15 +175,15 @@ export function useBackend() {
             return {
               ...p,
               currentTrack: track ?? p.currentTrack,
-              playing: p.loading ? false : playing,
-              position: p.loading ? 0 : ((e.position as number) ?? 0),
-              duration: (e.duration as number) ?? p.duration,
+              playing: loading ? false : playing,
+              loading,
+              loadingTrack: loading ? (p.loadingTrack ?? p.currentTrack) : null,
+              position: loading ? 0 : ((e.position as number) ?? 0),
+              duration: loading ? p.duration : ((e.duration as number) ?? p.duration),
               volume: (e.volume as number) ?? p.volume,
               muted: (e.muted as boolean) ?? p.muted,
               shuffle: (e.shuffle as boolean) ?? p.shuffle,
               repeat: (e.repeat as RepeatMode) ?? p.repeat,
-              loading: p.loading && !playing,
-              loadingTrack: p.loading && !playing ? p.loadingTrack : null,
             };
           });
           break;
@@ -205,20 +207,9 @@ export function useBackend() {
                 history: newHistory,
               };
             }
-            // Do not show a new track as ready until mpv reports it is actually
-            // playing. An existing loading load stays loading; a fresh track
-            // change (manual or auto-next) enters loading.
-            if (p.loading) {
-              return {
-                ...p,
-                currentTrack: track,
-                loadingTrack: track,
-                playing: false,
-                position: 0,
-                duration: 0,
-                history: newHistory,
-              };
-            }
+            // Enter loading on every track change (manual or auto-next); the
+            // backend's playback-state `loading: false` is what clears it once
+            // mpv actually starts. Do not show a new track as ready before then.
             return {
               ...p,
               currentTrack: track,
@@ -226,7 +217,7 @@ export function useBackend() {
               loadingTrack: track,
               playing: false,
               position: 0,
-              duration: 0,
+              duration: track.duration ?? 0,
               history: newHistory,
             };
           });
@@ -365,7 +356,9 @@ export function useBackend() {
       position: 0,
       duration: track.duration ?? 0,
     }));
-    // Safety timeout: clear loading if events never arrive
+    // Safety timeout: clear loading if events never arrive. Deliberately longer
+    // than the backend's own load timeout so it only fires if the backend is
+    // truly unresponsive rather than during a legitimate slow load.
     const loadTimeout = setTimeout(() => {
       set(p => {
         if (p.loading && p.loadingTrack?.id === track.id) {
@@ -373,7 +366,7 @@ export function useBackend() {
         }
         return p;
       });
-    }, 30_000);
+    }, 60_000);
     const playCmd = { type: 'play-track' as const, track };
     console.log('[DEBUG-CMD] useBackend.play() sending command:', JSON.stringify(playCmd));
     const r = await send(playCmd);

@@ -240,9 +240,9 @@ async fn backend_send_impl(
             let mut engine = state.engine.lock().await;
             engine.shutdown().await;
             drop(engine);
-            tauri::async_runtime::spawn(async move {
-                app.exit(0);
-            });
+            // Exit synchronously rather than on a fire-and-forget task so the
+            // shutdown can never be skipped during process teardown.
+            app.exit(0);
             ControlResponse::ok("Closing.")
         }
         "add-to-queue" => {
