@@ -55,11 +55,6 @@ impl YtDlp {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
-    pub async fn dump_json(&self, url: &str) -> anyhow::Result<String> {
-        let args = vec!["-J".to_string(), "--skip-download".to_string(), url.to_string()];
-        self.run(&args).await
-    }
-
     pub async fn search(&self, query: &str, limit: usize) -> anyhow::Result<Vec<Track>> {
         let args = vec![
             format!("ytsearch{limit}:{query}"),

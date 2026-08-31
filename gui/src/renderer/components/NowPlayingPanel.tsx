@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import {
   Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1,
-  Volume2, VolumeX, Heart, Plus, List, Sun, Moon, Monitor,
+  Volume2, VolumeX, Heart, Plus, List, Mic2, Sun, Moon, Monitor,
 } from 'lucide-react';
 import type { PlayerState } from '../hooks/useBackend';
 import type { Theme } from '../types';
@@ -13,6 +13,7 @@ interface NowPlayingPanelProps {
   state: PlayerState;
   theme: Theme;
   queueOpen: boolean;
+  lyricsOpen: boolean;
   onTogglePause: () => void;
   onNext: () => void;
   onPrevious: () => void;
@@ -24,6 +25,7 @@ interface NowPlayingPanelProps {
   onToggleFavorite: (track?: Track) => void;
   onAddToQueue: (track: Track) => void;
   onToggleQueue: () => void;
+  onToggleLyrics: () => void;
   onCycleTheme: () => void;
 }
 
@@ -118,10 +120,10 @@ function ProgressBar({
 }
 
 export function NowPlayingPanel({
-  state, theme, queueOpen,
+  state, theme, queueOpen, lyricsOpen,
   onTogglePause, onNext, onPrevious, onSeekTo,
   onSetVolume, onToggleMute, onToggleShuffle, onCycleRepeat,
-  onToggleFavorite, onAddToQueue, onToggleQueue, onCycleTheme,
+  onToggleFavorite, onAddToQueue, onToggleQueue, onToggleLyrics, onCycleTheme,
 }: NowPlayingPanelProps) {
   const {
     currentTrack, playing, loading, position, duration,
@@ -143,6 +145,17 @@ export function NowPlayingPanel({
           id="btn-theme"
         >
           <ThemeIcon theme={theme} />
+        </button>
+        <button
+          className={`ghost-btn${lyricsOpen ? ' active' : ''}`}
+          onClick={onToggleLyrics}
+          title="Lyrics"
+          aria-label="Toggle lyrics"
+          aria-pressed={lyricsOpen}
+          disabled={idle}
+          id="btn-open-lyrics"
+        >
+          <Mic2 size={16} strokeWidth={1.6} />
         </button>
         <button
           className={`ghost-btn${queueOpen ? ' active' : ''}`}

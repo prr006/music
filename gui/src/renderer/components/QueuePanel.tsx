@@ -77,7 +77,7 @@ export function QueuePanel({
               <p>Play a song to load lyrics.</p>
             </div>
           ) : lyricsLoading ? (
-            <p className="muted">Looking up captions…</p>
+            <p className="muted">Looking up lyrics…</p>
           ) : lines.length === 0 ? (
             <div className="empty-block sm">
               <p>No lyrics for this track.</p>

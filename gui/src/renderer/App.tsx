@@ -131,6 +131,15 @@ export function App() {
     setQueueOpen(open => !open);
   }, []);
 
+  const toggleLyrics = useCallback(() => {
+    if (queueOpen && rightTab === 'lyrics') {
+      setQueueOpen(false);
+    } else {
+      setRightTab('lyrics');
+      setQueueOpen(true);
+    }
+  }, [queueOpen, rightTab]);
+
   useEffect(() => {
     if (!queueOpen || rightTab !== 'lyrics' || !state.currentTrack) return;
     void b.fetchLyrics(state.currentTrack);
@@ -234,6 +243,7 @@ export function App() {
                     state={state}
                     theme={theme}
                     queueOpen={queueOpen}
+                    lyricsOpen={queueOpen && rightTab === 'lyrics'}
                     onTogglePause={b.togglePause}
                     onNext={b.nextTrack}
                     onPrevious={b.previousTrack}
@@ -245,6 +255,7 @@ export function App() {
                     onToggleFavorite={b.toggleFavorite}
                     onAddToQueue={b.addToQueue}
                     onToggleQueue={toggleQueue}
+                    onToggleLyrics={toggleLyrics}
                     onCycleTheme={cycleTheme}
                   />
                 </div>

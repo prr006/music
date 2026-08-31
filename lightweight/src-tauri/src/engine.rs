@@ -10,7 +10,7 @@ use crate::config;
 use crate::lyrics::LyricsProvider;
 use crate::mpv::Mpv;
 use crate::runtime::RuntimePaths;
-use crate::types::{AppSettings, LyricsResult, Playlist, QueueItem, QueueSource, RepeatMode, Track};
+use crate::types::{AppSettings, Playlist, QueueItem, QueueSource, RepeatMode, Track};
 use crate::ytdlp::YtDlp;
 
 const REFILL_THRESHOLD: usize = 5;
@@ -44,7 +44,7 @@ impl Engine {
         Engine {
             mpv: Mpv::new(),
             ytdlp: YtDlp::new(runtime.ytdlp.clone()),
-            lyrics: Arc::new(LyricsProvider::new(runtime.ytdlp.clone())),
+            lyrics: Arc::new(LyricsProvider::new()),
             events,
             current_track: None,
             queue: vec![],
@@ -408,11 +408,6 @@ impl Engine {
         self.settings = settings.clone();
         config::save_settings(&settings);
         self.emit(json!({ "type": "settings-changed", "settings": settings }));
-    }
-
-    #[allow(dead_code)]
-    pub async fn lyrics_for(&self, track: &Track) -> LyricsResult {
-        self.lyrics.lyrics_for(track).await
     }
 
     pub fn set_shuffle(&mut self, enabled: bool) {
